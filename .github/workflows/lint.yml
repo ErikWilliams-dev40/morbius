@@ -1,0 +1,76 @@
+name: Lint (reusable)
+
+# Runs the three lint scripts from package.json: Prettier, ESLint, and the
+# TypeScript compiler in check-only mode. Nothing here runs a command that
+# package.json does not also define as a script — see CLAUDE.md's Commands
+# table, which this file must stay in sync with.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/pr-checks.yml
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+      working-directory:
+        description: Directory to run the lint command in.
+        type: string
+        default: "."
+      ref:
+        description: Git ref or SHA to check out. Defaults to the caller's ref.
+        type: string
+        default: ""
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        # The one action here besides checkout. Published by GitHub, pinned to a
+        # full commit SHA (verified against the v6.5.0 tag), the same
+        # supply-chain decision compound-reference made for setup-go. See
+        # docs/RECOMMENDED_ACTIONS.md. The version is pinned exactly, not read
+        # from package.json, because engines.node there is a floor (>=24), and
+        # CI must run the version every document names.
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      # `npm ci` installs exactly what the lockfile says and fails if
+      # package.json and package-lock.json disagree. Never `npm install` here.
+      - name: Install dependencies
+        run: npm ci
+
+      # Three separate steps so a failure names the tool that found it. Each
+      # maps to one script: format:check, lint, typecheck.
+      - name: Check formatting (prettier)
+        run: npm run format:check
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck

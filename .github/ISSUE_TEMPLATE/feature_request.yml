@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose new or changed behaviour.
+title: "feat: <short summary>"
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: >-
+        What is not possible or is painful today? Describe the problem, not the
+        solution — it makes the proposal easier to evaluate.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including doing nothing, and why that is not enough.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this to be done?
+      placeholder: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: risk
+    attributes:
+      label: Likely to involve
+      description: Best guess at this stage — it informs the review path.
+      options:
+        - label: A database schema change
+        - label: A new external dependency or third-party service
+        - label: A new secret or credential
+        - label: A breaking change for existing consumers
+        - label: Customer-visible or contractual impact (needs business sign-off)

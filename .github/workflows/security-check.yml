@@ -1,0 +1,97 @@
+name: Security check (reusable)
+
+# Runs npm's dependency audit with no severity relaxation, then the tests that
+# exercise the controls: Access JWT verification, company and action
+# permissions, the read-only GitHub adapter, and the serialized queue with its
+# retained-slot path. Either failing fails the gate.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/pr-checks.yml
+#
+# The release-metadata field `security_review_status` is set from this job's
+# conclusion together with the AI review. See docs/RELEASE_METADATA.md.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+      working-directory:
+        description: Directory to run the security commands in.
+        type: string
+        default: "."
+      ref:
+        description: Git ref or SHA to check out. Defaults to the caller's ref.
+        type: string
+        default: ""
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  security-check:
+    name: Security check
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+      # security-events: write  # ONLY if you add a step that uploads SARIF to
+      #   code scanning. It lets the job write to the repository's security tab,
+      #   so do not enable it speculatively. The caller must grant it too — a
+      #   reusable workflow can narrow the caller's token but never widen it.
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        # The one action here besides checkout. Published by GitHub, pinned to a
+        # full commit SHA (verified against the v6.5.0 tag), the same
+        # supply-chain decision compound-reference made for setup-go. See
+        # docs/RECOMMENDED_ACTIONS.md. The version is pinned exactly, not read
+        # from package.json, because engines.node there is a floor (>=24), and
+        # CI must run the version every document names.
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      # `npm ci` installs exactly what the lockfile says and fails if
+      # package.json and package-lock.json disagree. Never `npm install` here.
+      - name: Install dependencies
+        run: npm ci
+
+      # These three suites import lib/ directly under Node's type stripping and
+      # use an in-memory SQLite, an in-memory object store, and mocked GitHub
+      # and provider responses. They do not need the build, a network, or a
+      # credential. They are listed by name, not globbed, so adding a test file
+      # does not silently change what this gate means. They run before the
+      # audit so a red audit never hides a test result; both must pass.
+      - name: Authorization and integration tests
+        run: >-
+          node --test
+          tests/helix-auth.test.mjs
+          tests/helix-integration.test.mjs
+          tests/workflow.test.mjs
+
+      # No `--audit-level`, no `|| true`, no suppression file. Any advisory in
+      # the lockfile fails this step until it is resolved or documented with a
+      # reachable-path analysis on the tracking issue (#4). An audit count is
+      # not an exploit count, but the gate is where that argument gets made,
+      # not where it gets skipped.
+      - name: Audit dependencies
+        run: npm audit
+
+      # Still to do, and deliberately not scripted here: SAST via GitHub CodeQL
+      # and secret scanning with push protection are both repository settings
+      # that need no workflow change. See docs/RECOMMENDED_ACTIONS.md.

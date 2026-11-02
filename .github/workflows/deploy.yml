@@ -1,0 +1,149 @@
+name: Deploy
+
+# Caller workflow. Wires the release half of the lifecycle:
+#
+#   staging-deploy → staging-health-check → [business approval] → production-deploy → production-health-check
+#
+# Triggered by a human, never automatically. The commit SHA is supplied by hand
+# and carried unchanged through every stage, so the version that reviewers
+# approved is the version that ships. See docs/RELEASE_METADATA.md.
+#
+# Rollback is deliberately NOT chained here. Deciding to roll back is a human
+# judgement about blast radius and data safety, so rollback.yml is dispatched
+# separately with the last known-good SHA.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit-sha:
+        description: Full 40-character SHA to deploy (not a branch or tag).
+        type: string
+        required: true
+      approved-sha:
+        description: >-
+          SHA copied from the release metadata record that reviewers approved.
+          Must match commit-sha — production-deploy refuses otherwise. Read it
+          from the record; do not retype it from memory.
+        type: string
+        required: true
+      deploy-production:
+        description: >-
+          Continue to production after staging is verified. Leave unchecked to
+          deploy staging only.
+        type: boolean
+        default: false
+
+# Least privilege at the top level. A called workflow can narrow this token but
+# never widen it.
+permissions:
+  contents: read
+
+# One deploy at a time. Never cancel a deploy in flight — a half-applied deploy
+# is worse than a queued one.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # Pre-flight. Runs before anything is deployed and before any human is asked to
+  # approve, because `production-deploy` binds the production Environment at job
+  # level — its own SHA check runs only *after* a reviewer has already approved,
+  # so a mismatch caught there wastes the approval instead of preventing it.
+  #
+  # This job holds no environment and touches nothing. production-deploy keeps its
+  # equivalent check as the authoritative gate; this one exists to fail fast.
+  validate:
+    name: Validate release input
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {} # reads nothing, deploys nothing
+    steps:
+      - name: Check SHA format and approval match
+        env:
+          COMMIT_SHA: ${{ inputs.commit-sha }}
+          APPROVED_SHA: ${{ inputs.approved-sha }}
+        run: |
+          set -euo pipefail
+
+          for pair in "commit-sha:$COMMIT_SHA" "approved-sha:$APPROVED_SHA"; do
+            name="${pair%%:*}"
+            value="${pair#*:}"
+            if ! printf '%s' "$value" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "::error title=Invalid $name::Expected a full 40-character lowercase hex SHA, got '$value'."
+              echo "Branch names and tags move, so they cannot identify a reviewed release."
+              exit 1
+            fi
+          done
+
+          if [ "$COMMIT_SHA" != "$APPROVED_SHA" ]; then
+            echo "::error title=Approval mismatch::Stopping before staging."
+            echo "  approved:  $APPROVED_SHA"
+            echo "  requested: $COMMIT_SHA"
+            echo "Read approved-sha from the release metadata record for this commit."
+            exit 1
+          fi
+
+          echo "Release input valid: $COMMIT_SHA"
+
+  staging-deploy:
+    name: Staging deploy
+    needs: validate
+    uses: ./.github/workflows/staging-deploy.yml
+    permissions:
+      contents: read
+    with:
+      commit-sha: ${{ inputs.commit-sha }}
+      environment: staging
+    # No `secrets:` block here, deliberately. Deploy credentials are stored as
+    # Environment secrets, and this caller job cannot read them: `environment:`
+    # is not permitted on a job that calls a reusable workflow, and a job without
+    # an environment sees no environment-scoped secrets. Forwarding them from
+    # here would silently pass an empty string.
+    #
+    # Instead the called workflow's job binds the environment and reads the
+    # secret itself. See the note in staging-deploy.yml.
+    #
+    # Never use `secrets: inherit` — it hands the called workflow every secret in
+    # the repository, including production credentials to a staging job.
+
+  staging-health-check:
+    name: Staging health check
+    needs: staging-deploy
+    uses: ./.github/workflows/staging-health-check.yml
+    permissions: {}
+    with:
+      url: ${{ needs.staging-deploy.outputs.url }}
+      path: / # CUSTOMIZE to the real health endpoint, e.g. /healthz
+
+  # Business approval happens here, and it is enforced by GitHub rather than by
+  # this file: production-deploy binds to the `production` Environment, and the
+  # required reviewers configured on that Environment hold the run until someone
+  # approves. Set them under Settings → Environments → production.
+  #
+  # This job is skipped entirely unless a staging deploy has been verified
+  # healthy, so nothing reaches the approval gate untested.
+  production-deploy:
+    name: Production deploy
+    needs: staging-health-check
+    # `inputs.deploy-production` is a real boolean because the input is declared
+    # `type: boolean`. Do NOT rewrite this as `github.event.inputs.*` — that
+    # context returns strings, and the string "false" is truthy, so the guard
+    # would silently pass and deploy to production every time.
+    if: inputs.deploy-production
+    uses: ./.github/workflows/production-deploy.yml
+    permissions:
+      contents: read
+    with:
+      commit-sha: ${{ inputs.commit-sha }}
+      approved-sha: ${{ inputs.approved-sha }}
+      environment: production
+    # No `secrets:` block — see the explanation on the staging-deploy job above.
+
+  production-health-check:
+    name: Production health check
+    needs: production-deploy
+    uses: ./.github/workflows/production-health-check.yml
+    permissions: {}
+    with:
+      url: ${{ needs.production-deploy.outputs.url }}
+      path: / # CUSTOMIZE to the real health endpoint, e.g. /healthz

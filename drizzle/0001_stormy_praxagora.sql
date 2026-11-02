@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `issue_url` text DEFAULT '' NOT NULL;

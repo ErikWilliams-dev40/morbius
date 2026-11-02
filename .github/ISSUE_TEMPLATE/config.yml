@@ -1,0 +1,16 @@
+# Issue template chooser configuration.
+
+# Require one of the templates above rather than allowing a blank issue, so every
+# issue carries the fields the lifecycle depends on.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/House-of-Helix-CMD/mobius-godmode/security/advisories/new
+    about: >-
+      Never report a vulnerability in an issue. While this repository is
+      private, this form is available to repository admins only; anyone else
+      contacts a Helix technical admin directly — see SECURITY.md.
+
+# The template's "Ask a question" link pointed at Discussions, which is not
+# enabled on this repository. Add it back in its own change if that changes.

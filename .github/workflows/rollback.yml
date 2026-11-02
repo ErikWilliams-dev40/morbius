@@ -1,0 +1,150 @@
+name: Rollback (reusable)
+
+# PLACEHOLDER for the redeploy step itself. This workflow does not know the
+# hosting environment or deploy provider — replace the step marked CUSTOMIZE.
+#
+# The safety guards below are FUNCTIONAL as shipped.
+#
+# Rollback is only meaningful if the target version can actually run against the
+# current state of the world. A release that ran a destructive or non-backward-
+# compatible database migration is NOT rollback-safe, and redeploying old code
+# over a migrated database can lose data. That is why this workflow requires an
+# explicit acknowledgement rather than inferring safety.
+#
+# Triggered two ways, on purpose:
+#   workflow_dispatch — the normal route. A human decides to roll back and runs
+#     this from the Actions tab. Deliberately NOT chained onto a failed health
+#     check; see docs/LIFECYCLE.md for why that would be unsafe.
+#   workflow_call — so a future workflow can compose it if needed.
+#
+# GitHub scopes inputs per trigger, so the two blocks below are declared
+# separately. Keep the names and defaults identical: the job body reads
+# `inputs.<name>` and must behave the same whichever trigger fired.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target-sha:
+        description: Full 40-character SHA of the last known-good release to redeploy.
+        type: string
+        required: true
+      environment:
+        description: GitHub Environment to roll back.
+        type: string
+        default: production
+      rollback-safe:
+        description: >-
+          Tick only if the release metadata records rollback_safe: true. Left
+          unticked, this workflow refuses to run — the safe default.
+        type: boolean
+        default: false
+      reason:
+        description: Why this rollback is happening. Recorded in the run log.
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      target-sha:
+        description: >-
+          Full 40-character SHA of the last known-good release to redeploy.
+        type: string
+        required: true
+      environment:
+        description: GitHub Environment to roll back.
+        type: string
+        default: production
+      rollback-safe:
+        description: >-
+          The rollback_safe value from the release metadata of the release being
+          rolled back. If false, this workflow refuses to run.
+        type: boolean
+        required: true
+      reason:
+        description: Why this rollback is happening. Recorded in the run log.
+        type: string
+        required: true
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+
+# Deploy credentials are read from the Environment named by the `environment`
+# input. See the explanation in staging-deploy.yml.
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  rollback:
+    name: Roll back ${{ inputs.environment }}
+    # `runner` is a workflow_call-only input, so it is unset on a manual dispatch.
+    # The fallback keeps runs-on valid either way, and spares the dispatch form a
+    # field nobody should normally change.
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    # Rolling back production is a production change. It goes through the same
+    # Environment gate, so the same reviewers see it.
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+    steps:
+      - name: Check rollback safety
+        env:
+          TARGET_SHA: ${{ inputs.target-sha }}
+          ROLLBACK_SAFE: ${{ inputs.rollback-safe }}
+          REASON: ${{ inputs.reason }}
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "$TARGET_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error title=Invalid target SHA::Expected a full 40-character lowercase hex SHA, got '$TARGET_SHA'."
+            exit 1
+          fi
+
+          if [ "$ROLLBACK_SAFE" != "true" ]; then
+            echo "::error title=Release is not rollback-safe::Refusing to roll back automatically."
+            echo "The release metadata records rollback_safe: false, which normally means a"
+            echo "destructive or non-backward-compatible database migration was applied."
+            echo "Redeploying older code over the migrated state could lose data."
+            echo "This needs a deliberate, human-planned recovery — not this workflow."
+            exit 1
+          fi
+
+          echo "Rolling back $ENVIRONMENT_NAME to $TARGET_SHA"
+          echo "Reason: $REASON"
+
+      - name: Check out the rollback target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.target-sha }}
+          persist-credentials: false
+
+      # ── CUSTOMIZE ─────────────────────────────────────────────────────────
+      # Replace this step with the real rollback.
+      #
+      # The mechanism depends entirely on the platform, and the cheapest correct
+      # option is usually the platform's own:
+      #   - a provider that keeps immutable previous deployments: promote the
+      #     previous one, and no rebuild is needed;
+      #   - a container platform: redeploy the previously published image tag;
+      #   - anything else: redeploy target-sha the same way production-deploy
+      #     does.
+      #
+      # Do NOT reverse a database migration here. Schema recovery is planned by a
+      # human with the data in front of them.
+      #
+      # If this platform cannot roll back, delete this workflow rather than
+      # leaving a step that pretends to. State that plainly in the README so
+      # nobody plans around a capability that does not exist.
+      - name: Redeploy previous version
+        run: |
+          echo "::error title=Template not configured::.github/workflows/rollback.yml is still a placeholder."
+          echo "Replace the 'Redeploy previous version' step with this project's rollback command,"
+          echo "or delete this workflow if the platform does not support rollback."
+          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
+          exit 1
+      # ──────────────────────────────────────────────────────────────────────

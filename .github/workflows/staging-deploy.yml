@@ -1,0 +1,114 @@
+name: Staging deploy (reusable)
+
+# PLACEHOLDER. This workflow does not know the hosting environment or deploy
+# provider. Replace the step marked CUSTOMIZE with a real deploy command.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/deploy.yml
+
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        description: >-
+          Full 40-character SHA to deploy. This is the identity of the release;
+          it is validated below and must not be a branch or tag name.
+        type: string
+        required: true
+      environment:
+        description: Name of the GitHub Environment holding staging credentials.
+        type: string
+        default: staging
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+    outputs:
+      url:
+        description: Base URL the deployment is reachable at, for the health check.
+        value: ${{ jobs.deploy.outputs.url }}
+
+# ── Where the deploy credential comes from ───────────────────────────────────
+# Store it as a secret on the GitHub Environment named by the `environment`
+# input (Settings → Environments → staging → Add secret), then read it in the
+# deploy step below as ${{ secrets.<NAME> }}.
+#
+# It is read here rather than passed in by the caller because `environment:` is
+# not allowed on a job that calls a reusable workflow — so a caller job cannot
+# see environment-scoped secrets, and forwarding one would pass an empty string
+# with no error. The job below binds the environment, so it can read them.
+#
+# Use the SAME secret name on the staging and production Environments with
+# different values. That is what keeps a staging run unable to read production
+# credentials: the environment binding, not the secret's name.
+#
+# NOT YET VERIFIED. This design is sound in principle but has not been exercised
+# in a real repository. An unset or unreachable secret resolves to an EMPTY STRING
+# rather than failing, so a misplaced secret looks like working config.
+#
+# Verify in GitHub with a DUMMY, NON-PRODUCTION value: put a throwaway secret on
+# the staging Environment, echo its length (never its value) from this job, and
+# confirm the length is non-zero. Do not use a real credential for this test.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
+    # Binds the job to the GitHub Environment, which is where staging secrets and
+    # any protection rules live.
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+      # id-token: write  # ONLY if the provider supports OIDC. Prefer this over a
+      #   long-lived stored token: the job exchanges a short-lived credential at
+      #   run time, so there is nothing standing to leak. The caller must grant
+      #   it too — a called workflow cannot widen the caller's token.
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Validate commit SHA
+        env:
+          COMMIT_SHA: ${{ inputs.commit-sha }}
+        run: |
+          if ! printf '%s' "$COMMIT_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error title=Invalid commit SHA::Expected a full 40-character lowercase hex SHA, got '$COMMIT_SHA'."
+            echo "A branch or tag name would let the deployed code drift from the reviewed code."
+            exit 1
+          fi
+          echo "Deploying commit $COMMIT_SHA"
+
+      - name: Check out the exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.commit-sha }}
+          persist-credentials: false
+
+      # ── CUSTOMIZE ─────────────────────────────────────────────────────────
+      # Replace this step with the real staging deploy.
+      # Per-stack guidance: docs/CUSTOMIZATION.md
+      #
+      # Set the `url` output to the deployed base URL so staging-health-check
+      # has something to probe:
+      #
+      #   echo "url=https://staging.example.com" >> "$GITHUB_OUTPUT"
+      #
+      # If the project runs database migrations, run them here and record
+      # database_migration: true in the release metadata.
+      - name: Deploy
+        id: deploy
+        run: |
+          echo "::error title=Template not configured::.github/workflows/staging-deploy.yml is still a placeholder."
+          echo "Replace the 'Deploy' step with this project's staging deploy command,"
+          echo "and set the 'url' step output to the deployed base URL."
+          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
+          exit 1
+      # ──────────────────────────────────────────────────────────────────────

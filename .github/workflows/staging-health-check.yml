@@ -1,0 +1,113 @@
+name: Staging health check (reusable)
+
+# This workflow is FUNCTIONAL as shipped — an HTTP probe does not depend on the
+# language, framework, or host. Point it at a URL and it works.
+#
+# You will still want to customize the health endpoint path, and optionally add
+# a deeper readiness assertion (see the CUSTOMIZE note at the end).
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/deploy.yml
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        description: Base URL of the staging deployment, e.g. https://staging.example.com
+        type: string
+        required: true
+      path:
+        description: Health endpoint path appended to the base URL.
+        type: string
+        default: /
+      expected-status:
+        description: HTTP status code that means healthy.
+        type: number
+        default: 200
+      attempts:
+        description: How many times to probe before giving up.
+        type: number
+        default: 10
+      delay-seconds:
+        description: Seconds to wait between probes.
+        type: number
+        default: 15
+      timeout-seconds:
+        description: Per-request timeout in seconds.
+        type: number
+        default: 10
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+
+# Least privilege: deny everything here, grant the minimum per job.
+# This job only makes an outbound HTTP request — it needs no repository access
+# at all, so no job-level permissions are granted.
+permissions: {}
+
+jobs:
+  health-check:
+    name: Health check (staging)
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions: {} # no checkout, no repository read; nothing is needed
+    steps:
+      - name: Probe health endpoint
+        env:
+          # Passed through the environment, not interpolated into the script, so
+          # a URL containing shell metacharacters cannot alter the command.
+          BASE_URL: ${{ inputs.url }}
+          PROBE_PATH: ${{ inputs.path }}
+          EXPECTED: ${{ inputs.expected-status }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          DELAY: ${{ inputs.delay-seconds }}
+          REQ_TIMEOUT: ${{ inputs.timeout-seconds }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BASE_URL" ]; then
+            echo "::error title=No URL::The 'url' input is empty. The deploy step must output its deployed URL."
+            exit 1
+          fi
+
+          # Join base and path with exactly one slash.
+          target="${BASE_URL%/}/${PROBE_PATH#/}"
+          echo "Probing $target — expecting HTTP $EXPECTED"
+
+          attempt=1
+          while [ "$attempt" -le "$ATTEMPTS" ]; do
+            # curl already emits 000 via --write-out when the request never got a
+            # response, so do not add a fallback code here — it would concatenate.
+            # `|| true` only stops set -e from aborting on curl's non-zero exit.
+            code="$(curl --silent --show-error --location \
+                         --max-time "$REQ_TIMEOUT" \
+                         --output /dev/null \
+                         --write-out '%{http_code}' \
+                         "$target" || true)"
+            code="${code:-000}"
+
+            if [ "$code" = "$EXPECTED" ]; then
+              echo "Attempt $attempt/$ATTEMPTS: HTTP $code — healthy."
+              echo "::notice title=Staging healthy::$target returned HTTP $code"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/$ATTEMPTS: HTTP $code (want $EXPECTED)."
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              sleep "$DELAY"
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          echo "::error title=Staging unhealthy::$target never returned HTTP $EXPECTED after $ATTEMPTS attempts."
+          exit 1
+
+      # ── CUSTOMIZE (optional) ──────────────────────────────────────────────
+      # A 200 from the front door proves the process is up, not that the release
+      # is good. Once the app exposes a real readiness endpoint, add a step that
+      # asserts on its body — for example that a /health payload reports the
+      # database reachable and the deployed version matches the expected SHA.
+      # Verifying the version echoed back matches the commit that was reviewed is
+      # the strongest signal available here.
+      # ──────────────────────────────────────────────────────────────────────

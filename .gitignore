@@ -1,0 +1,38 @@
+# Local Claude Code settings. Machine-specific (enabled MCP servers, local
+# permissions) and must not propagate to projects copied from this template.
+.claude/settings.local.json
+
+# Session-generated permission grants. Un-ignore this deliberately if the project
+# ever adopts a curated, shared Claude Code config worth committing.
+.claude/settings.json
+
+# ── Node / Vite / Vinext ────────────────────────────────────────────────────
+node_modules/
+dist/
+.next/
+.vite/
+*.tsbuildinfo
+
+# ── Cloudflare Workers / D1 / R2 ────────────────────────────────────────────
+# Local Wrangler state holds the emulated D1 database and R2 objects — runtime
+# data, never source.
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# ── Sandboxed preview environment (scripts/sites-env.sh) ────────────────────
+.sites-runtime/
+outputs/
+work/
+next-env.d.ts
+
+# ── Local environment ───────────────────────────────────────────────────────
+# Never commit a real value. Secrets live in GitHub Environments — see
+# docs/WORKFLOWS.md and CLAUDE.md.
+.env
+.env.*
+!.env.example
+
+# Local run logs (dev server, test and build output captures)
+*.log
+

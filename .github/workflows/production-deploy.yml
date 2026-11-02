@@ -1,0 +1,140 @@
+name: Production deploy (reusable)
+
+# PLACEHOLDER for the deploy step itself. This workflow does not know the hosting
+# environment or deploy provider — replace the step marked CUSTOMIZE.
+#
+# The approval-integrity guard below is FUNCTIONAL as shipped, and is the point
+# where commit-SHA immutability is enforced: the workflow refuses to deploy
+# anything other than the exact commit that was approved.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/deploy.yml
+
+on:
+  workflow_call:
+    inputs:
+      commit-sha:
+        description: Full 40-character SHA to deploy.
+        type: string
+        required: true
+      approved-sha:
+        description: >-
+          Full 40-character SHA recorded in the release metadata that the
+          reviewers signed off on. Must equal commit-sha.
+        type: string
+        required: true
+      environment:
+        description: >-
+          GitHub Environment holding production credentials. Its required-reviewer
+          rule is the business-approval gate — the run pauses here until a
+          reviewer approves.
+        type: string
+        default: production
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+    outputs:
+      url:
+        description: Base URL the deployment is reachable at, for the health check.
+        value: ${{ jobs.deploy.outputs.url }}
+
+# Deploy credentials are read from the Environment named by the `environment`
+# input, not passed in by the caller. See the full explanation in
+# staging-deploy.yml — the short version is that a job calling a reusable
+# workflow cannot declare an environment, so it cannot read environment secrets,
+# and forwarding one would silently pass an empty string.
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
+    # Binds the job to the GitHub Environment. Required reviewers configured
+    # there hold the run before any step executes — that is the business
+    # approval gate. It is enforced by GitHub, not by this file.
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+      # id-token: write  # ONLY if the provider supports OIDC. Prefer this over a
+      #   long-lived stored token. The caller must grant it too — a called
+      #   workflow cannot widen the caller's token.
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      # ── Approval integrity ────────────────────────────────────────────────
+      # An executive approval refers to one exact version of the code. If the
+      # SHA being deployed differs from the SHA that was reviewed — because a
+      # branch moved, a PR was amended, or the wrong value was pasted — the
+      # approval no longer describes what would ship. Refuse, do not warn.
+      #
+      # Limitation, stated plainly: this compares two values supplied to the
+      # run. It catches drift and paste errors, not an operator who enters the
+      # same wrong SHA in both fields. `approved-sha` must be READ from the
+      # release metadata record, never retyped from memory. The gate that stops
+      # a determined operator is the Environment reviewer below, not this step.
+      - name: Verify the deploy target matches the approved commit
+        env:
+          COMMIT_SHA: ${{ inputs.commit-sha }}
+          APPROVED_SHA: ${{ inputs.approved-sha }}
+        run: |
+          set -euo pipefail
+
+          for pair in "COMMIT_SHA:$COMMIT_SHA" "APPROVED_SHA:$APPROVED_SHA"; do
+            name="${pair%%:*}"
+            value="${pair#*:}"
+            if ! printf '%s' "$value" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "::error title=Invalid $name::Expected a full 40-character lowercase hex SHA, got '$value'."
+              echo "A branch or tag name can move, so it cannot identify an approved release."
+              exit 1
+            fi
+          done
+
+          if [ "$COMMIT_SHA" != "$APPROVED_SHA" ]; then
+            echo "::error title=Approval mismatch::Refusing to deploy."
+            echo "  approved: $APPROVED_SHA"
+            echo "  requested: $COMMIT_SHA"
+            echo "The approval on record does not cover the requested commit."
+            echo "Re-run the review gates against $COMMIT_SHA and record a new release."
+            exit 1
+          fi
+
+          echo "Approved commit confirmed: $COMMIT_SHA"
+
+      - name: Check out the exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.commit-sha }}
+          persist-credentials: false
+
+      # ── CUSTOMIZE ─────────────────────────────────────────────────────────
+      # Replace this step with the real production deploy.
+      # Per-stack guidance: docs/CUSTOMIZATION.md
+      #
+      # Set the `url` output to the deployed base URL so production-health-check
+      # has something to probe:
+      #
+      #   echo "url=https://example.com" >> "$GITHUB_OUTPUT"
+      #
+      # Deploy the same artifact that was verified on staging where the provider
+      # allows it — rebuilding here means production runs a build no one tested.
+      #
+      # If this release includes a database migration, apply it here and make
+      # sure the release metadata records database_migration: true and an honest
+      # rollback_safe value.
+      - name: Deploy
+        id: deploy
+        run: |
+          echo "::error title=Template not configured::.github/workflows/production-deploy.yml is still a placeholder."
+          echo "Replace the 'Deploy' step with this project's production deploy command,"
+          echo "and set the 'url' step output to the deployed base URL."
+          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
+          exit 1
+      # ──────────────────────────────────────────────────────────────────────

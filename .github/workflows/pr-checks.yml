@@ -1,0 +1,73 @@
+name: PR checks
+
+# Caller workflow. Runs the four automated gates on every pull request.
+# The reusable workflows it calls run the real npm scripts from package.json;
+# none has a success path when the toolchain or the source is absent.
+#
+# Configure these four as required status checks in branch protection
+# (Settings → Branches) so a PR cannot merge without them.
+
+on:
+  pull_request:
+    branches: [main] # the default branch, confirmed against the live repository
+  # Also runs on pushes to the default branch so the branch's own state is
+  # checked after merge, not only in the PR.
+  push:
+    branches: [main] # the default branch, confirmed against the live repository
+
+# Least privilege at the top level. A reusable workflow can narrow this token but
+# never widen it, so anything a called job needs must be granted here.
+permissions:
+  contents: read
+
+# A new push to a PR supersedes that PR's in-flight checks. Runs on the default
+# branch are never cancelled — each commit on it keeps its own pass/fail record,
+# which is what you consult when deciding whether a SHA is releasable.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# A job that calls a reusable workflow produces a check named
+# "<this job> / <job inside the called workflow>".
+#
+# These names are OBSERVED, not predicted — read off real runs on this
+# repository (PR #5, commits 769084c and d282f3c):
+#
+#   lint / Lint
+#   test / Test
+#   build / Build
+#   security-check / Security check
+#
+# They are not yet configured as required status checks; that needs repository
+# admin. Until it is done a red pull request can still be merged. See
+# docs/LIFECYCLE.md → "Required status checks — deferred".
+#
+# No `name:` is set on these jobs on purpose — it would only add a third redundant
+# word to the check name.
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+
+  security-check:
+    uses: ./.github/workflows/security-check.yml
+    permissions:
+      contents: read
+      # security-events: write  # only if security-check.yml uploads SARIF
+
+  # The AI/security review gate and the peer-approval gate are not jobs here.
+  # AI review runs against the diff using .claude/agents/security-reviewer.md,
+  # and peer approval will be enforced by .github/CODEOWNERS plus branch protection
+  # once those are configured — neither is operational yet.
+  # See docs/LIFECYCLE.md.

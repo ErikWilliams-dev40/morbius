@@ -1,0 +1,114 @@
+name: Production health check (reusable)
+
+# This workflow is FUNCTIONAL as shipped — an HTTP probe does not depend on the
+# language, framework, or host. Point it at a URL and it works.
+#
+# Same probe as staging-health-check.yml, with stricter defaults: it waits
+# longer before conceding, because its failure is what triggers a rollback
+# decision. Kept as a separate file so production tuning never silently changes
+# staging behaviour.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/deploy.yml
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        description: Base URL of the production deployment, e.g. https://example.com
+        type: string
+        required: true
+      path:
+        description: Health endpoint path appended to the base URL.
+        type: string
+        default: /
+      expected-status:
+        description: HTTP status code that means healthy.
+        type: number
+        default: 200
+      attempts:
+        description: How many times to probe before declaring the release unhealthy.
+        type: number
+        default: 20
+      delay-seconds:
+        description: Seconds to wait between probes.
+        type: number
+        default: 15
+      timeout-seconds:
+        description: Per-request timeout in seconds.
+        type: number
+        default: 10
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+
+# Least privilege: deny everything here, grant the minimum per job.
+# This job only makes an outbound HTTP request — it needs no repository access
+# at all, so no job-level permissions are granted.
+permissions: {}
+
+jobs:
+  health-check:
+    name: Health check (production)
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 20
+    permissions: {} # no checkout, no repository read; nothing is needed
+    steps:
+      - name: Probe health endpoint
+        env:
+          # Passed through the environment, not interpolated into the script, so
+          # a URL containing shell metacharacters cannot alter the command.
+          BASE_URL: ${{ inputs.url }}
+          PROBE_PATH: ${{ inputs.path }}
+          EXPECTED: ${{ inputs.expected-status }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          DELAY: ${{ inputs.delay-seconds }}
+          REQ_TIMEOUT: ${{ inputs.timeout-seconds }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BASE_URL" ]; then
+            echo "::error title=No URL::The 'url' input is empty. The deploy step must output its deployed URL."
+            exit 1
+          fi
+
+          # Join base and path with exactly one slash.
+          target="${BASE_URL%/}/${PROBE_PATH#/}"
+          echo "Probing $target — expecting HTTP $EXPECTED"
+
+          attempt=1
+          while [ "$attempt" -le "$ATTEMPTS" ]; do
+            # curl already emits 000 via --write-out when the request never got a
+            # response, so do not add a fallback code here — it would concatenate.
+            # `|| true` only stops set -e from aborting on curl's non-zero exit.
+            code="$(curl --silent --show-error --location \
+                         --max-time "$REQ_TIMEOUT" \
+                         --output /dev/null \
+                         --write-out '%{http_code}' \
+                         "$target" || true)"
+            code="${code:-000}"
+
+            if [ "$code" = "$EXPECTED" ]; then
+              echo "Attempt $attempt/$ATTEMPTS: HTTP $code — healthy."
+              echo "::notice title=Production healthy::$target returned HTTP $code"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/$ATTEMPTS: HTTP $code (want $EXPECTED)."
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              sleep "$DELAY"
+            fi
+            attempt=$((attempt + 1))
+          done
+
+          echo "::error title=Production unhealthy::$target never returned HTTP $EXPECTED after $ATTEMPTS attempts."
+          echo "If this release is marked rollback_safe, run the rollback workflow with the previous good SHA."
+          exit 1
+
+      # ── CUSTOMIZE (optional) ──────────────────────────────────────────────
+      # See the equivalent note in staging-health-check.yml. For production,
+      # asserting that the deployed build reports the expected commit SHA is
+      # worth the effort: it catches a deploy that silently served the old
+      # version, which a plain 200 cannot detect.
+      # ──────────────────────────────────────────────────────────────────────

@@ -1,0 +1,76 @@
+name: Build (reusable)
+
+# Compiles the Cloudflare Worker and the client with `vinext build`, via the
+# package's `build` script. Output lands in dist/ and is not uploaded: the
+# deploy workflows are still placeholders and there is no consumer yet.
+#
+# Reusable workflow: it is called by another workflow, never triggered directly.
+# Called by: .github/workflows/pr-checks.yml
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner label to execute on.
+        type: string
+        default: ubuntu-latest
+      working-directory:
+        description: Directory to run the build command in.
+        type: string
+        default: "."
+      ref:
+        description: Git ref or SHA to check out. Defaults to the caller's ref.
+        type: string
+        default: ""
+
+# Least privilege: deny everything here, grant the minimum per job.
+permissions: {}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read # required only so actions/checkout can read the repository
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        # Pinned to a full commit SHA, not the mutable @v7 tag. Published by
+        # GitHub; see docs/RECOMMENDED_ACTIONS.md.
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        # The one action here besides checkout. Published by GitHub, pinned to a
+        # full commit SHA (verified against the v6.5.0 tag), the same
+        # supply-chain decision compound-reference made for setup-go. See
+        # docs/RECOMMENDED_ACTIONS.md. The version is pinned exactly, not read
+        # from package.json, because engines.node there is a floor (>=24), and
+        # CI must run the version every document names.
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      # `npm ci` installs exactly what the lockfile says and fails if
+      # package.json and package-lock.json disagree. Never `npm install` here.
+      - name: Install dependencies
+        run: npm ci
+
+      # No build-time secrets. Everything Mobius needs at runtime is a Worker
+      # binding or an Environment secret read at deploy time, never inlined
+      # into the bundle — see CLAUDE.md "Secrets and runtime configuration".
+      - name: Build
+        env:
+          SITES_BUILD_TIMEOUT: 10m
+        run: npm run build
+
+      # The deploy workflows still rebuild rather than consuming this output.
+      # Wiring an artifact upload here is deliberately left until there is a
+      # deploy target — see docs/RECOMMENDED_ACTIONS.md.

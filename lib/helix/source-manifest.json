@@ -1,0 +1,31 @@
+{
+  "sourceArchive": "helix-control-plane.zip",
+  "archiveSha256": "89466a4c5dac6b5f214142171ab39fe3ae38c4105c2f99df3ce595f8079dbea5",
+  "suppliedOn": "2026-09-06",
+  "sourceFiles": [
+    {
+      "path": "worker/auth.ts",
+      "sha256": "aadfa43be01021a7bb8db8c1e771b3a791b7ce5945966f616006766ca7d53213"
+    },
+    {
+      "path": "worker/naming.ts",
+      "sha256": "549de8b42fe30e014ee8091055aa5f3d2a4166c36630b41436176ac6d841599f"
+    },
+    {
+      "path": "worker/github/client.ts",
+      "sha256": "f95af817ab2380b87857a28f0e5f55d6cda6d9792a1a76b957f03ac4456d37a5"
+    },
+    {
+      "path": "worker/github/projects.ts",
+      "sha256": "3f92736e04a56546cafc3119678d9feff2e9e843643121a4717b1cb7d8102308"
+    },
+    {
+      "path": "shared/projects.ts",
+      "sha256": "3ca8a22f29f4db3e2b0092c0b0e7e10b2291bfb2dd7ff81d29bbd03191927cfb"
+    },
+    {
+      "path": "worker/github/contents.ts",
+      "sha256": "5f0f3ff15e3365ffe843b7b3b475ad12b29ce2582120ff7a9ba5a58e0b571931"
+    }
+  ]
+}

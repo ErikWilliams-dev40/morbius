@@ -1,0 +1,12 @@
+# Managed by helix-control-plane at provisioning time.
+#
+# Feature work needs one approving review from any developer with write access —
+# no entry here, so no code owner is requested. Developers review each other.
+#
+# The paths below decide how this project is built, tested, released and
+# governed. Changing them changes the safety of every future release, so they
+# require a Helix technical admin regardless of who wrote the change.
+
+/.github/   @House-of-Helix-CMD/technical-admins
+/.helix/    @House-of-Helix-CMD/technical-admins
+/CODEOWNERS @House-of-Helix-CMD/technical-admins

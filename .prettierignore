@@ -1,0 +1,23 @@
+node_modules
+dist
+.next
+.sites-runtime
+.wrangler
+components/ui
+vendor
+drizzle/meta
+package-lock.json
+
+# Repository governance documents from the Helix template. They predate
+# Prettier in this repository and are owned by the lifecycle docs, not the
+# application; formatting them would widen unrelated PRs (decision on #2).
+CLAUDE.md
+README.md
+CONTRIBUTING.md
+SECURITY.md
+CODEOWNERS.example
+.claude/
+.github/
+.helix/
+docs/*.md
+docs/schemas/
