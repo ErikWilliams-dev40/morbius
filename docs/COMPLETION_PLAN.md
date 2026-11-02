@@ -8,6 +8,28 @@ This plan is a working document. Per `CONTRIBUTING.md`, each task lands through
 its own issue and pull request; lifecycle rule 5 keeps workflow changes in
 their own PRs. Tasks are ordered by dependency and lead time, not just effort.
 
+## Progress — updated 2026-11-01
+
+- ✅ **P0.1** — Done: `npm audit` at zero findings; analysis in
+  `docs/DEPENDENCY_REVIEW.md`.
+- ⏸ **P1.1** — Blocked on the migration DDL gate. The invitations DDL is
+  proposed and awaits explicit approval (`CLAUDE.md`: "Don't write migrations
+  unattended. Propose the DDL and wait."). Everything else is ready to build
+  behind it.
+- ✅ **P1.2** — Done: `POST /projects/:id/publish` publishes the decision
+  record to the linked issue through a comment-only write client
+  (`lib/helix/worker/github/publish.ts`), with refusal tests. UI button in the
+  Developer handoff tab.
+- ✅ **P1.3** — Done: the Worker's `scheduled` handler and `triggers.crons`
+  advance the queue with no browser open; covered by
+  `tests/scheduled.test.mjs` against built output.
+- ✅ **P5.3** — Done: doc drift fixed (README, SECURITY.md, LIFECYCLE.md,
+  CLAUDE.md), Windows/Node notes added, `vite.config.ts` import warnings
+  resolved.
+- ⬜ Phases 2–4, P5.1, P5.2 — unchanged: external provisioning, real deploy
+  steps, rollback decision, live provider verification, staging acceptance,
+  SECURITY.md response targets, first `releases/` record.
+
 ---
 
 ## A. Already done (verified)

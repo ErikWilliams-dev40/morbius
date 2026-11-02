@@ -41,6 +41,14 @@ The host is **decided**: Cloudflare Workers with Wrangler, D1, R2, and Vite
 provisioning — account, database and bucket identities, Access applications,
 secret manager — is not yet done, and nothing has been purchased.
 
+## Local development
+
+Node `24.19.0` (`.nvmrc`), npm. The `dev`, `build`, `lint`, and `db:generate`
+scripts are POSIX shell wrappers — run them under Git Bash, WSL, or macOS/Linux.
+Under Windows cmd/PowerShell the direct equivalents are `npx vite`,
+`npx vinext build`, and `npx eslint .`. Runtime state (`.wrangler/`,
+`.sites-runtime/`) is created on first run and never committed.
+
 ## Current state
 
 The application source is in this repository. #8 imported the 2026-09-06
@@ -64,8 +72,10 @@ rule 5), validated first against the source on a throwaway harness PR (#7)
 that was closed once read. The four gates are, in order: Prettier, ESLint and
 `tsc --noEmit`; `npm test`, which builds then runs the suite against the built
 output; `npm run build`; and the authorization, integration, and workflow
-tests followed by `npm audit` with no severity floor. `npm audit` reports zero
-findings since #8. The exact commands are in `CLAUDE.md`.
+tests followed by `npm audit` with no severity floor. `npm audit` was brought
+back to zero findings on 2026-11-01; `docs/DEPENDENCY_REVIEW.md` records the
+reachable-path analysis behind the upgrades and the two `overrides` entries.
+The exact commands are in `CLAUDE.md`.
 
 The template shipped those four as placeholders that exit non-zero on purpose,
 and they stayed red until #6 and #8 landed. That was the template's design: a

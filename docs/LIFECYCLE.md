@@ -68,9 +68,10 @@ All four must pass. They are **not yet configured as required status checks** â€
 see [Required status checks](#required-status-checks--deferred) â€” so until that is
 done they are advisory and a PR can technically merge red.
 
-These ship as placeholders that **fail** until customized. A placeholder that
-exited `0` would show a green check for work that never happened; see
-[`WORKFLOWS.md`](WORKFLOWS.md).
+The template shipped these four as placeholders that **fail** until customized;
+they were replaced with real commands in #6 and now run Prettier, ESLint,
+`tsc --noEmit`, the bounded build, the test suite against built output, and
+`npm audit`.
 
 ## 5. AI/security review
 

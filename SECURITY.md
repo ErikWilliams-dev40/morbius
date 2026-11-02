@@ -113,6 +113,8 @@ Two rules worth stating outright, because a reporter may be checking for them:
 no secret is ever committed to this repository, and widening a workflow's token
 scope is treated as a security change requiring its own reviewed pull request.
 
-Note that several of the gates above are **not yet operational** — the automated
-checks are placeholders, and required status checks are not configured. See the
-README for the current state.
+Note that the automated checks are real and run on every pull request, but
+required status checks are not yet configured in a freshly provisioned copy —
+until they are, a red pull request can still be merged. See
+`docs/LIFECYCLE.md` for the configuration sequence and the README for the
+current state.

@@ -351,11 +351,13 @@ subject under ~72 characters with no trailing period, body explaining *why*, and
 
 **Secrets and runtime configuration.** `.env.example` in the source lists
 names only; values live in the platform's secret store per environment. The
-two real credentials are `OPENAI_API_KEY` and `HELIX_GITHUB_READ_TOKEN` — a
+three real credentials are `OPENAI_API_KEY`, `HELIX_GITHUB_READ_TOKEN` — a
 dedicated read-only token scoped to assigned repositories, never the existing
-dashboard's write credential. The rest is configuration: `MOBIUS_AUTH_MODE`,
+dashboard's write credential — and `HELIX_GITHUB_WRITE_TOKEN`, which can only
+post issue comments on assigned repositories. The rest is configuration:
+`MOBIUS_AUTH_MODE`,
 `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, the `*_EMAILS` role allowlists,
-`MOBIUS_MEMBER_SCOPES`, `MOBIUS_COMPANY_REPOS`, and the two
+`MOBIUS_MEMBER_SCOPES`, `MOBIUS_COMPANY_REPOS`, and the three
 `MOBIUS_*_APPROVED` flags that a technical admin sets to record approval of
 the GitHub and AI integrations. The D1 binding is `DB`, the R2 binding is
 `BUCKET`. Same names on `staging` and `production`, different values. Read
@@ -370,12 +372,12 @@ sample data, simulated interactions, and versioned feedback; 1–5 internal
 staff; 26–100 build/revision requests per week; one active build; human
 developers implement production.
 
-**Still unfinished, and carried as issues rather than hidden:** GitHub
-publication of briefs, versions, feedback, and decisions; scoped external
-reviewer invitations with verified email, expiry, and revocation; continuous
-queue scheduling; approved per-environment hosting, storage, runtime
-identities, and secret manager; live provider compatibility and cost
-measurement; browser and staging acceptance.
+**Still unfinished, and carried as issues rather than hidden:** scoped external
+reviewer invitations with verified email, expiry, and revocation; approved
+per-environment hosting, storage, runtime identities, and secret manager; live
+provider compatibility and cost measurement; browser and staging acceptance.
+GitHub publication of the decision record and continuous queue scheduling
+landed on 2026-11-01 (`docs/COMPLETION_PLAN.md` tracks the remainder).
 
 **Sequence, as it happened on 2026-09-06.** #6 turned the check workflows
 real in a separate PR against `main` (closing #3), validated by harness PR #7
