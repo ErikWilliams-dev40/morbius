@@ -17,8 +17,16 @@ import {
   type AccessEnv,
   type User,
 } from "./access.ts";
-import { developmentState, verifyIssue, githubConfigured, type HelixEnv } from "./helix.ts";
+import {
+  developmentState,
+  verifyIssue,
+  githubConfigured,
+  githubPublicationConfigured,
+  issueRefFromUrl,
+  type HelixEnv,
+} from "./helix.ts";
 import { GitHubError } from "./helix/worker/github/client.ts";
+import { publishIssueComment } from "./helix/worker/github/publish.ts";
 
 type Result<T = Record<string, unknown>> = { results: T[]; meta: { changes: number } };
 export interface Statement {
@@ -167,6 +175,17 @@ async function provider(
     throw new HttpError(response.status === 401 ? 400 : 503, message, response.status);
   }
   return response.json();
+}
+
+/** The developer-handoff decision record. Shared by the export and publication. */
+function handoffText(
+  p: Project,
+  versions: Version[],
+  comments: Comment[],
+  history: Activity[],
+  origin: string,
+) {
+  return `# ${p.title}\n\nCompany: ${companyById(p.company).name}\nPlatform: ${companyById(p.company).platform}\nWork type: ${p.kind === "new" ? "New project" : "Existing project change"}\nStatus: ${p.status}\n\n## Brief\n\n${p.brief}\n\n## Acceptance criteria\n\n${p.criteria || "Not specified"}\n\nReference: ${p.reference || "None"}\nGitHub work item: ${p.issue_url || "Not linked — sample/local preparation only"}\n\n## Prototype versions\n\n${versions.map((v) => `- v${v.number} (${v.source}): ${origin}/preview/${v.id}\n  SHA-256: ${v.digest}${p.approved_version === v.id ? "\n  Approved for implementation." : ""}`).join("\n")}\n\nLinks require authorized workspace access. Download the HTML separately to hand it to your developer.\n\n## Feedback\n\n${comments.map((c) => `### v${versions.find((v) => v.id === c.version_id)?.number} · ${c.author} · ${new Date(c.created_at).toISOString()}\n\n${c.body}`).join("\n\n") || "No feedback recorded."}\n\n## Decision history\n\n${history.map((a) => `- ${new Date(a.created_at).toISOString()} — ${a.actor}: ${a.text}`).join("\n")}\n\n## Production boundary\n\nPrototype approval is a design decision. A human developer implements and validates production code. Technical checks, business release approval, deployment and rollback must follow the current Helix governance standard. Keep this record with the linked GitHub work item — Mobius publishes it there when the approved publication connection is configured. Release decisions remain in Helix Development Control. No technical check or production release is certified by this export.\n`;
 }
 
 export const previewPolicy =
@@ -319,7 +338,12 @@ async function failJob(env: AppEnv, job: BuildJob, message: string) {
     log(env, job.project_id, "Prototype build needs attention", job.actor),
   ]);
 }
-async function tick(env: AppEnv) {
+/**
+ * Advance the build queue by one step. Called from the authenticated
+ * `POST /tick` route while a workspace is open, and from the Worker's
+ * `scheduled` handler so builds progress with no browser open.
+ */
+export async function tick(env: AppEnv) {
   const lock = await takeLock(env);
   if (!lock) return;
   let job: BuildJob | null = null;
@@ -694,7 +718,7 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
       }
     }
     const match = route.match(
-      /^\/projects\/([^/]+)(?:\/(enqueue|upload|feedback|approve|handoff|issue))?$/,
+      /^\/projects\/([^/]+)(?:\/(enqueue|upload|feedback|approve|handoff|issue|publish))?$/,
     );
     if (!match) throw new HttpError(404, "This action was not found.");
     const p = await project(env, match[1], user);
@@ -731,7 +755,7 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
         "SELECT * FROM activity WHERE project_id=? ORDER BY created_at",
         p.id,
       );
-      const text = `# ${p.title}\n\nCompany: ${companyById(p.company).name}\nPlatform: ${companyById(p.company).platform}\nWork type: ${p.kind === "new" ? "New project" : "Existing project change"}\nStatus: ${p.status}\n\n## Brief\n\n${p.brief}\n\n## Acceptance criteria\n\n${p.criteria || "Not specified"}\n\nReference: ${p.reference || "None"}\nGitHub work item: ${p.issue_url || "Not linked — sample/local preparation only"}\n\n## Prototype versions\n\n${versions.map((v) => `- v${v.number} (${v.source}): ${url.origin}/preview/${v.id}\n  SHA-256: ${v.digest}${p.approved_version === v.id ? "\n  Approved for implementation." : ""}`).join("\n")}\n\nLinks require authorized workspace access. Download the HTML separately to hand it to your developer.\n\n## Feedback\n\n${comments.map((c) => `### v${versions.find((v) => v.id === c.version_id)?.number} · ${c.author} · ${new Date(c.created_at).toISOString()}\n\n${c.body}`).join("\n\n") || "No feedback recorded."}\n\n## Decision history\n\n${history.map((a) => `- ${new Date(a.created_at).toISOString()} — ${a.actor}: ${a.text}`).join("\n")}\n\n## Production boundary\n\nPrototype approval is a design decision. A human developer implements and validates production code. Technical checks, business release approval, deployment and rollback must follow the current Helix governance standard. Copy this brief, the approved version digest, feedback, and decision record to the linked GitHub issue before developer work begins. Mobius does not publish that record yet. Release decisions remain in Helix Development Control. No technical check or production release is certified by this export.\n`;
+      const text = handoffText(p, versions, comments, history, url.origin);
       return new Response(text, {
         headers: {
           "Content-Type": "text/markdown; charset=utf-8",
@@ -742,7 +766,7 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
     }
     if (request.method !== "POST") throw new HttpError(405, "Method not allowed.");
     const data = await body(request);
-    if (["enqueue", "upload", "handoff", "issue"].includes(operation || ""))
+    if (["enqueue", "upload", "handoff", "issue", "publish"].includes(operation || ""))
       requireCapability(user, "canBuild");
     if (operation === "approve" || (operation === "feedback" && data.changes === true))
       requireCapability(user, "canApprovePrototype");
@@ -975,6 +999,43 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
           "Approve the latest prototype before handing it to your developer.",
         );
       return json({ ok: true });
+    }
+    if (operation === "publish") {
+      if (!githubPublicationConfigured(env))
+        throw new HttpError(
+          409,
+          "Ask your technical admin to configure the approved GitHub publication connection.",
+        );
+      if (!p.approved_version)
+        throw new HttpError(
+          409,
+          "Approve a prototype version before publishing the decision record.",
+        );
+      if (!(await verifyIssue(env, p.company, p.issue_url)))
+        throw new HttpError(
+          409,
+          "Link a verified open GitHub work item before publishing the decision record.",
+        );
+      const ref = issueRefFromUrl(p.issue_url)!;
+      const [versions, comments, history] = await Promise.all([
+        many<Version>(env, "SELECT * FROM versions WHERE project_id=? ORDER BY number DESC", p.id),
+        many<Comment>(env, "SELECT * FROM comments WHERE project_id=? ORDER BY created_at", p.id),
+        many<Activity>(env, "SELECT * FROM activity WHERE project_id=? ORDER BY created_at", p.id),
+      ]);
+      const text = handoffText(p, versions, comments, history, url.origin);
+      const published = await publishIssueComment(
+        env.HELIX_GITHUB_WRITE_TOKEN!,
+        ref.repo,
+        ref.number,
+        text,
+      );
+      await log(
+        env,
+        p.id,
+        `Decision record published to the GitHub work item: ${published.url}`,
+        user.email,
+      ).run();
+      return json({ ok: true, url: published.url });
     }
     throw new HttpError(404, "This action was not found.");
   } catch (error) {

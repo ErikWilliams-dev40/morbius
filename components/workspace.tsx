@@ -1313,10 +1313,25 @@ function ProjectReview({
                     ? "Handed to developer"
                     : "Mark as handed to developer"}
                 </Button>
+                <Button
+                  variant="outline"
+                  disabled={busy || !canBuild || !p.issue_url || !p.approved_version || !!active}
+                  onClick={() =>
+                    void action(
+                      `/projects/${p.id}/publish`,
+                      {},
+                      "Decision record published to the linked work item.",
+                    )
+                  }
+                >
+                  <GitBranch className="size-4" />
+                  Publish record to work item
+                </Button>
                 <p className="text-sm text-muted-foreground">
                   This records a handoff. Share the downloaded files with your developer; Mobius
-                  does not send them yet. Copy the handoff record to the linked work item before
-                  development begins. Release decisions stay in the Helix dashboard.
+                  does not send them yet. Publishing keeps the brief, version digests, feedback, and
+                  decision history durably linked to the GitHub work item. Release decisions stay in
+                  the Helix dashboard.
                 </p>
               </section>
             </TabsContent>

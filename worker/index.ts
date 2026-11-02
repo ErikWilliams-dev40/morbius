@@ -5,7 +5,7 @@ import {
   DEFAULT_IMAGE_SIZES,
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { handleMobius, type AppEnv } from "../lib/server";
+import { handleMobius, tick, type AppEnv } from "../lib/server";
 
 interface Env extends AppEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -55,6 +55,19 @@ const worker = {
 
     return handler.fetch(request, env, ctx);
   },
+
+  /**
+   * Cron entry (see `triggers.crons` in vite.config.ts). Advances the build
+   * queue so prototypes keep building while no workspace is open in a browser.
+   */
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    await tick(env);
+  },
 };
+
+interface ScheduledEvent {
+  scheduledTime: number;
+  cron: string;
+}
 
 export default worker;
