@@ -99,6 +99,28 @@ export const activity = sqliteTable(
   },
   (t) => [index("project_activity").on(t.projectId, t.createdAt)],
 );
+export const invitations = sqliteTable(
+  "invitations",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id),
+    versionId: text("version_id")
+      .notNull()
+      .references(() => versions.id),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("invitations_token_hash").on(t.tokenHash),
+    index("version_invitations").on(t.versionId, t.createdAt),
+  ],
+);
 export const settings = sqliteTable("settings", {
   id: text("id").primaryKey(),
   value: text("value").notNull(),

@@ -108,7 +108,7 @@ export function fixture(context) {
   async function request(path, body, options = {}) {
     return handleMobius(
       new Request(
-        `https://mobius.test${path.startsWith("/preview/") ? path : "/api/mobius" + path}`,
+        `https://mobius.test${path.startsWith("/preview/") || path.startsWith("/invite/") ? path : "/api/mobius" + path}`,
         {
           method: body === undefined ? "GET" : "POST",
           headers: {

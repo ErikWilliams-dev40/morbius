@@ -438,6 +438,9 @@ export default function Workspace() {
                 onBack={() => go("projects")}
                 action={action}
                 onConnections={() => go("connections")}
+                onRefresh={() => {
+                  if (selectedRef.current) void refreshDetail(selectedRef.current);
+                }}
               />
             ) : (
               <div className="panel p-10 text-center">
@@ -947,6 +950,7 @@ function ProjectReview({
   onBack,
   action,
   onConnections,
+  onRefresh,
 }: {
   detail: ProjectDetail;
   state: WorkspaceState | null;
@@ -954,8 +958,9 @@ function ProjectReview({
   onBack: () => void;
   action: Action;
   onConnections: () => void;
+  onRefresh: () => void;
 }) {
-  const { project: p, versions, comments, activity } = detail;
+  const { project: p, versions, comments, activity, invitations } = detail;
   const [versionId, setVersionId] = useState("");
   const [mobile, setMobile] = useState(false);
   const [comment, setComment] = useState("");
@@ -972,6 +977,27 @@ function ProjectReview({
   const newest = v?.id === versions[0]?.id;
   const canApprove = state?.user.capabilities.canApprovePrototype && v && newest && !active;
   const canBuild = state?.user.capabilities.canBuild;
+  const canManage = !!state?.user.capabilities.canManage;
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteDays, setInviteDays] = useState("14");
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  async function createInvite() {
+    if (!v) return;
+    setInviteError("");
+    try {
+      const created = await api<{ token: string }>(`/projects/${p.id}/invitations`, {
+        versionId: v.id,
+        email: inviteEmail,
+        expiresInDays: Number(inviteDays) || 14,
+      });
+      setInviteLink(`${window.location.origin}/invite/${created.token}`);
+      setInviteEmail("");
+      onRefresh();
+    } catch (e) {
+      setInviteError((e as Error).message);
+    }
+  }
   const [issueUrl, setIssueUrl] = useState(p.issue_url);
   async function upload(file?: File) {
     if (!file) return;
@@ -1333,6 +1359,100 @@ function ProjectReview({
                   decision history durably linked to the GitHub work item. Release decisions stay in
                   the Helix dashboard.
                 </p>
+                <section className="space-y-3 rounded-xl border border-border p-4">
+                  <h3 className="font-semibold">External reviewers</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Invite someone outside the workspace to review exactly one version. Send the
+                    link to their email yourself — it expires on its own and can be revoked at any
+                    time.
+                  </p>
+                  {canManage && v && (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="min-w-[220px] flex-1">
+                        <Label htmlFor="invite-email">Reviewer email</Label>
+                        <Input
+                          id="invite-email"
+                          type="email"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          placeholder="reviewer@example.com"
+                        />
+                      </div>
+                      <div className="w-[110px]">
+                        <Label htmlFor="invite-days">Valid days</Label>
+                        <Input
+                          id="invite-days"
+                          type="number"
+                          min={1}
+                          max={90}
+                          value={inviteDays}
+                          onChange={(e) => setInviteDays(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        disabled={busy || !inviteEmail.trim()}
+                        onClick={() => void createInvite()}
+                      >
+                        <Send className="size-4" />
+                        Create invitation
+                      </Button>
+                    </div>
+                  )}
+                  {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+                  {inviteLink && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted p-3 text-sm">
+                      <code className="flex-1 break-all">{inviteLink}</code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(inviteLink);
+                          setInviteError("");
+                        }}
+                      >
+                        <Check className="size-4" />
+                        Copy link
+                      </Button>
+                    </div>
+                  )}
+                  {invitations.length > 0 && (
+                    <ul className="space-y-2">
+                      {invitations.map((inv) => {
+                        const status = inv.revoked_at
+                          ? "Revoked"
+                          : `v${versions.find((x) => x.id === inv.version_id)?.number ?? "?"} · expires ${date(inv.expires_at)}`;
+                        return (
+                          <li
+                            key={inv.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                          >
+                            <span>{inv.email}</span>
+                            <span className="text-muted-foreground">
+                              {status} · expires {date(inv.expires_at)}
+                            </span>
+                            {!inv.revoked_at && canManage && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() =>
+                                  void action(
+                                    `/invitations/${inv.id}/revoke`,
+                                    {},
+                                    "Invitation revoked.",
+                                  )
+                                }
+                              >
+                                Revoke
+                              </Button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
               </section>
             </TabsContent>
           </Tabs>

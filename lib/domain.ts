@@ -129,6 +129,16 @@ export type Activity = {
   actor: string;
   created_at: number;
 };
+export type Invitation = {
+  id: string;
+  project_id: string;
+  version_id: string;
+  email: string;
+  created_by: string;
+  created_at: number;
+  expires_at: number;
+  revoked_at: number | null;
+};
 export type WorkspaceState = {
   user: User;
   projects: Project[];
@@ -143,4 +153,5 @@ export type ProjectDetail = {
   versions: Version[];
   comments: Comment[];
   activity: Activity[];
+  invitations: Invitation[];
 };

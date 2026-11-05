@@ -7,8 +7,9 @@ import {
   type Job,
   type Comment,
   type Activity,
+  type Invitation,
 } from "./domain.ts";
-import { sampleDemo } from "./sample.ts";
+import { sampleDemo, escapeHtml } from "./sample.ts";
 import {
   identifyUser,
   requireCompany,
@@ -84,6 +85,15 @@ const log = (env: AppEnv, pid: string, text: string, actor: string) =>
     now(),
   );
 const models = ["gpt-5.6-sol", "gpt-5.6-terra"] as const;
+const randomToken = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+const sha256hex = async (value: string) =>
+  Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
 
 export function validateMutation(request: Request) {
   if (request.method === "GET" || request.method === "HEAD") return;
@@ -516,8 +526,83 @@ export async function tick(env: AppEnv) {
   }
 }
 
+/**
+ * External reviewer entry (unauthenticated by design). Serves exactly the one
+ * invited version's HTML and nothing else. Every request re-checks revocation
+ * and expiry against the invitations table, which is the authority; the token
+ * itself grants no API access. See docs/COMPLETION_PLAN.md P1.1.
+ */
+async function handleInvite(request: Request, env: AppEnv): Promise<Response> {
+  const invitePage = (status: number, title: string, message: string) =>
+    new Response(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:16px/1.55 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#f5f7fb;color:#17233b}main{max-width:28rem;padding:2rem;background:#fff;border:1px solid #e1e7f0;border-radius:14px}h1{font-size:21px}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main></body></html>`,
+      {
+        status,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "private, no-store",
+          "Content-Security-Policy":
+            "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff",
+        },
+      },
+    );
+  try {
+    if (request.method !== "GET")
+      return invitePage(405, "Method not allowed", "Open the link from your invitation.");
+    const raw = new URL(request.url).pathname.slice("/invite/".length);
+    const inv = raw
+      ? await one<Invitation>(
+          env,
+          "SELECT * FROM invitations WHERE token_hash=?",
+          await sha256hex(raw),
+        )
+      : null;
+    if (!inv)
+      return invitePage(
+        404,
+        "This link is not valid",
+        "Check that you opened the complete link from your invitation.",
+      );
+    if (inv.revoked_at)
+      return invitePage(
+        410,
+        "This invitation was revoked",
+        "A workspace manager ended this invitation. Ask for a new one if you still need access.",
+      );
+    if (inv.expires_at < now())
+      return invitePage(
+        410,
+        "This invitation has expired",
+        "Ask a workspace manager for a new invitation.",
+      );
+    const v = await one<Version>(env, "SELECT * FROM versions WHERE id=?", inv.version_id);
+    const object = v ? await env.BUCKET.get(v.storage_key) : null;
+    if (!v || !object)
+      return invitePage(
+        404,
+        "This prototype is unavailable",
+        "The invited version no longer exists.",
+      );
+    return new Response(await object.text(), {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "private, no-store",
+        "Content-Security-Policy": previewPolicy,
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+      },
+    });
+  } catch {
+    return invitePage(500, "Something went wrong", "Please try the link again.");
+  }
+}
+
 export async function handleMobius(request: Request, env: AppEnv): Promise<Response> {
   try {
+    if (new URL(request.url).pathname.startsWith("/invite/")) return handleInvite(request, env);
     validateMutation(request);
     const user = await identify(request, env);
     const url = new URL(request.url);
@@ -717,6 +802,85 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
         await releaseLock(env, lock);
       }
     }
+    const invitationsMatch = route.match(/^\/projects\/([^/]+)\/invitations$/);
+    if (request.method === "POST" && invitationsMatch) {
+      requireCapability(user, "canManage");
+      const invProject = await project(env, invitationsMatch[1], user);
+      const data = z
+        .object({
+          versionId: z.string().uuid(),
+          email: z
+            .string()
+            .trim()
+            .toLowerCase()
+            .max(254)
+            .refine((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Use an email address."),
+          expiresInDays: z.number().int().min(1).max(90).default(14),
+        })
+        .parse(await body(request));
+      const invVersion = await one<Version>(
+        env,
+        "SELECT * FROM versions WHERE id=? AND project_id=?",
+        data.versionId,
+        invProject.id,
+      );
+      if (!invVersion)
+        throw new HttpError(404, "The selected version does not belong to this project.");
+      const raw = randomToken();
+      const id = uid();
+      const expiresAt = now() + data.expiresInDays * 86400000;
+      await env.DB.batch([
+        stmt(
+          env,
+          "INSERT INTO invitations(id,project_id,version_id,email,token_hash,created_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)",
+          id,
+          invProject.id,
+          invVersion.id,
+          data.email,
+          await sha256hex(raw),
+          user.email,
+          now(),
+          expiresAt,
+        ),
+        log(
+          env,
+          invProject.id,
+          `External reviewer invited for version ${invVersion.number}`,
+          user.email,
+        ),
+      ]);
+      // The raw token is returned exactly once; only its hash is stored.
+      return json({ id, token: raw, expiresAt }, 201);
+    }
+    const revokeMatch = route.match(/^\/invitations\/([^/]+)\/revoke$/);
+    if (request.method === "POST" && revokeMatch) {
+      requireCapability(user, "canManage");
+      const inv = await one<Invitation>(
+        env,
+        "SELECT * FROM invitations WHERE id=?",
+        revokeMatch[1],
+      );
+      if (!inv) throw new HttpError(404, "Invitation not found.");
+      await project(env, inv.project_id, user);
+      await env.DB.batch([
+        stmt(
+          env,
+          "UPDATE invitations SET revoked_at=? WHERE id=? AND revoked_at IS NULL",
+          now(),
+          inv.id,
+        ),
+        stmt(
+          env,
+          "INSERT INTO activity(id,project_id,text,actor,created_at) SELECT ?,?,?,?,? WHERE changes()>0",
+          uid(),
+          inv.project_id,
+          "External reviewer invitation revoked",
+          user.email,
+          now(),
+        ),
+      ]);
+      return json({ ok: true });
+    }
     const match = route.match(
       /^\/projects\/([^/]+)(?:\/(enqueue|upload|feedback|approve|handoff|issue|publish))?$/,
     );
@@ -724,7 +888,7 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
     const p = await project(env, match[1], user);
     const operation = match[2];
     if (request.method === "GET" && !operation) {
-      const [versions, comments, activity] = await Promise.all([
+      const [versions, comments, activity, invitations] = await Promise.all([
         many<Version>(env, "SELECT * FROM versions WHERE project_id=? ORDER BY number DESC", p.id),
         many<Comment>(
           env,
@@ -736,8 +900,13 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
           "SELECT * FROM activity WHERE project_id=? ORDER BY created_at DESC",
           p.id,
         ),
+        many<Invitation>(
+          env,
+          "SELECT id,project_id,version_id,email,created_by,created_at,expires_at,revoked_at FROM invitations WHERE project_id=? ORDER BY created_at DESC",
+          p.id,
+        ),
       ]);
-      return json({ project: p, versions, comments, activity });
+      return json({ project: p, versions, comments, activity, invitations });
     }
     if (request.method === "GET" && operation === "handoff") {
       const versions = await many<Version>(
