@@ -1,7 +1,10 @@
 name: Staging deploy (reusable)
 
-# PLACEHOLDER. This workflow does not know the hosting environment or deploy
-# provider. Replace the step marked CUSTOMIZE with a real deploy command.
+# Real staging deploy: Cloudflare Workers via the Wrangler CLI — a pinned CLI
+# dependency, not a third-party action (docs/RECOMMENDED_ACTIONS.md). The step
+# below fails at an explicit provisioning gate until the per-environment
+# Cloudflare resources exist; wrangler.jsonc carries placeholders until a
+# technical admin records the real identifiers.
 #
 # Reusable workflow: it is called by another workflow, never triggered directly.
 # Called by: .github/workflows/deploy.yml
@@ -93,22 +96,53 @@ jobs:
           persist-credentials: false
 
       # ── CUSTOMIZE ─────────────────────────────────────────────────────────
-      # Replace this step with the real staging deploy.
-      # Per-stack guidance: docs/CUSTOMIZATION.md
+      # Real staging deploy: build the checked-out SHA and deploy it to the
+      # Cloudflare Workers staging environment with the Wrangler CLI.
       #
-      # Set the `url` output to the deployed base URL so staging-health-check
-      # has something to probe:
+      # Credentials and the public URL come from the staging Environment:
+      #   secrets.CLOUDFLARE_API_TOKEN   Workers deploy + D1 migration scope
+      #   secrets.CLOUDFLARE_ACCOUNT_ID
+      #   vars.DEPLOY_BASE_URL           deployed base URL, for the health probe
+      # Runtime configuration (MOBIUS_*, ACCESS_*, OPENAI_API_KEY,
+      # HELIX_GITHUB_READ_TOKEN, HELIX_GITHUB_WRITE_TOKEN) is set with
+      # `wrangler secret put` at provisioning time, never in this workflow.
       #
-      #   echo "url=https://staging.example.com" >> "$GITHUB_OUTPUT"
-      #
-      # If the project runs database migrations, run them here and record
-      # database_migration: true in the release metadata.
+      # D1 migrations run before the deploy; record database_migration: true in
+      # the release metadata and keep rollback_safe honest — D1 has no
+      # point-in-time rollback of an applied migration.
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        with:
+          node-version: 24.19.0
+          cache: npm
       - name: Deploy
         id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_BASE_URL: ${{ vars.DEPLOY_BASE_URL }}
         run: |
-          echo "::error title=Template not configured::.github/workflows/staging-deploy.yml is still a placeholder."
-          echo "Replace the 'Deploy' step with this project's staging deploy command,"
-          echo "and set the 'url' step output to the deployed base URL."
-          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
-          exit 1
+          set -euo pipefail
+
+          if grep -q "REPLACE_AFTER_PROVISIONING" wrangler.jsonc; then
+            echo "::error title=Provisioning incomplete::wrangler.jsonc still contains REPLACE_AFTER_PROVISIONING identifiers."
+            echo "Per-environment Cloudflare provisioning is not recorded yet; see README →"
+            echo "'The blocking dependencies'. A technical admin replaces the placeholders"
+            echo "and records the result in .helix/project.json before this step can run."
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error title=Deploy credential missing::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets on the staging Environment."
+            exit 1
+          fi
+          if [ -z "${DEPLOY_BASE_URL:-}" ]; then
+            echo "::error title=No URL::Set the DEPLOY_BASE_URL variable on the staging Environment so staging-health-check has something to probe."
+            exit 1
+          fi
+
+          npm ci
+          npm run build
+          npm run db:migrate:staging
+          npm run deploy:staging
+          echo "url=$DEPLOY_BASE_URL" >> "$GITHUB_OUTPUT"
       # ──────────────────────────────────────────────────────────────────────

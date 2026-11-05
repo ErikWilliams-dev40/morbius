@@ -1,7 +1,8 @@
 name: Production deploy (reusable)
 
-# PLACEHOLDER for the deploy step itself. This workflow does not know the hosting
-# environment or deploy provider — replace the step marked CUSTOMIZE.
+# Real production deploy: Cloudflare Workers via the Wrangler CLI. The deploy
+# step below fails at an explicit provisioning gate until the per-environment
+# Cloudflare resources exist (wrangler.jsonc placeholders).
 #
 # The approval-integrity guard below is FUNCTIONAL as shipped, and is the point
 # where commit-SHA immutability is enforced: the workflow refuses to deploy
@@ -115,26 +116,56 @@ jobs:
           persist-credentials: false
 
       # ── CUSTOMIZE ─────────────────────────────────────────────────────────
-      # Replace this step with the real production deploy.
-      # Per-stack guidance: docs/CUSTOMIZATION.md
+      # Real production deploy: build the checked-out SHA and deploy it to the
+      # Cloudflare Workers production environment with the Wrangler CLI.
       #
-      # Set the `url` output to the deployed base URL so production-health-check
-      # has something to probe:
+      # Honest note: this rebuilds the reviewed SHA here rather than promoting
+      # the staging artifact. Passing the exact verified bytes between jobs is
+      # an improvement left open in docs/RECOMMENDED_ACTIONS.md.
       #
-      #   echo "url=https://example.com" >> "$GITHUB_OUTPUT"
+      # Credentials and the public URL come from the production Environment:
+      #   secrets.CLOUDFLARE_API_TOKEN   Workers deploy + D1 migration scope
+      #   secrets.CLOUDFLARE_ACCOUNT_ID
+      #   vars.DEPLOY_BASE_URL           deployed base URL, for the health probe
+      # Runtime configuration is set with `wrangler secret put` at provisioning
+      # time, never in this workflow.
       #
-      # Deploy the same artifact that was verified on staging where the provider
-      # allows it — rebuilding here means production runs a build no one tested.
-      #
-      # If this release includes a database migration, apply it here and make
-      # sure the release metadata records database_migration: true and an honest
-      # rollback_safe value.
+      # D1 migrations run before the deploy; record database_migration: true in
+      # the release metadata and keep rollback_safe honest — D1 has no
+      # point-in-time rollback of an applied migration.
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        with:
+          node-version: 24.19.0
+          cache: npm
       - name: Deploy
         id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_BASE_URL: ${{ vars.DEPLOY_BASE_URL }}
         run: |
-          echo "::error title=Template not configured::.github/workflows/production-deploy.yml is still a placeholder."
-          echo "Replace the 'Deploy' step with this project's production deploy command,"
-          echo "and set the 'url' step output to the deployed base URL."
-          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
-          exit 1
+          set -euo pipefail
+
+          if grep -q "REPLACE_AFTER_PROVISIONING" wrangler.jsonc; then
+            echo "::error title=Provisioning incomplete::wrangler.jsonc still contains REPLACE_AFTER_PROVISIONING identifiers."
+            echo "Per-environment Cloudflare provisioning is not recorded yet; see README →"
+            echo "'The blocking dependencies'. A technical admin replaces the placeholders"
+            echo "and records the result in .helix/project.json before this step can run."
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error title=Deploy credential missing::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets on the production Environment."
+            exit 1
+          fi
+          if [ -z "${DEPLOY_BASE_URL:-}" ]; then
+            echo "::error title=No URL::Set the DEPLOY_BASE_URL variable on the production Environment so production-health-check has something to probe."
+            exit 1
+          fi
+
+          npm ci
+          npm run build
+          npm run db:migrate:production
+          npm run deploy:production
+          echo "url=$DEPLOY_BASE_URL" >> "$GITHUB_OUTPUT"
       # ──────────────────────────────────────────────────────────────────────

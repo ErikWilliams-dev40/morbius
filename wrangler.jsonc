@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Deploy configuration for the Cloudflare Workers host (decided 2026-09-06).
+  // The `database_id` values below are PLACEHOLDERS on purpose: a technical
+  // admin replaces REPLACE_AFTER_PROVISIONING with the real D1 IDs after
+  // per-environment provisioning (README, "The blocking dependencies") and
+  // records the result in .helix/project.json. The deploy workflows refuse to
+  // run while any placeholder remains — a deploy that "succeeds" against
+  // unprovisioned resources is exactly the false green this pipeline forbids.
+  // Runtime configuration (MOBIUS_*, ACCESS_*, OPENAI_API_KEY,
+  // HELIX_GITHUB_READ_TOKEN, HELIX_GITHUB_WRITE_TOKEN) is set per environment
+  // with `wrangler secret put`, never committed here.
+  "name": "mobius",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "upload_source_maps": true,
+  "triggers": { "crons": ["* * * * *"] },
+  "assets": { "directory": "dist/client", "binding": "ASSETS" },
+  "images": { "binding": "IMAGES" },
+  "env": {
+    "staging": {
+      "name": "mobius-staging",
+      "triggers": { "crons": ["* * * * *"] },
+      "images": { "binding": "IMAGES" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mobius-db-staging",
+          "database_id": "REPLACE_AFTER_PROVISIONING",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "mobius-r2-staging" }],
+    },
+    "production": {
+      "name": "mobius-production",
+      "triggers": { "crons": ["* * * * *"] },
+      "images": { "binding": "IMAGES" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mobius-db-production",
+          "database_id": "REPLACE_AFTER_PROVISIONING",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "mobius-r2-production" }],
+    },
+  },
+}

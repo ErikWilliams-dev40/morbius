@@ -83,10 +83,11 @@ placeholder exiting `0` would report a green check for a test run that never
 happened, and the release record would say `test_status: passed`. False green
 is worse than red.
 
-The three deploy workflows are still placeholders, for a different reason: the
-host is chosen but not provisioned, so the Wrangler deploy step cannot be
-written yet, which is why `deployTarget` and `previewUrl` in
-`.helix/project.json` are still `null`.
+The three deploy workflows contain real Wrangler deploy steps, but they are
+gated: until the host is provisioned per environment and the placeholders in
+`wrangler.jsonc` are replaced, every deploy fails at an explicit
+"Provisioning incomplete" error. That is why `deployTarget` and `previewUrl`
+in `.helix/project.json` are still `null`.
 
 The two health checks are functional as shipped — an HTTP probe does not depend
 on the language or host.

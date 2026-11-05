@@ -1,7 +1,9 @@
 name: Rollback (reusable)
 
-# PLACEHOLDER for the redeploy step itself. This workflow does not know the
-# hosting environment or deploy provider — replace the step marked CUSTOMIZE.
+# Real rollback: redeploy the previous, known-good commit the same way
+# production-deploy does (Cloudflare Workers via the Wrangler CLI). Cloudflare
+# keeps previous Worker versions, but the honest rollback here is a redeploy of
+# the reviewed target SHA so code and migrations stay explicitly paired.
 #
 # The safety guards below are FUNCTIONAL as shipped.
 #
@@ -124,27 +126,47 @@ jobs:
           persist-credentials: false
 
       # ── CUSTOMIZE ─────────────────────────────────────────────────────────
-      # Replace this step with the real rollback.
+      # Real rollback: rebuild the rollback target SHA and redeploy it to the
+      # same Cloudflare Workers environment. Cloudflare keeps previous Worker
+      # versions, but a redeploy of the reviewed SHA keeps code and schema
+      # pairing explicit and reuses the same gated path as production-deploy.
       #
-      # The mechanism depends entirely on the platform, and the cheapest correct
-      # option is usually the platform's own:
-      #   - a provider that keeps immutable previous deployments: promote the
-      #     previous one, and no rebuild is needed;
-      #   - a container platform: redeploy the previously published image tag;
-      #   - anything else: redeploy target-sha the same way production-deploy
-      #     does.
-      #
-      # Do NOT reverse a database migration here. Schema recovery is planned by a
-      # human with the data in front of them.
-      #
-      # If this platform cannot roll back, delete this workflow rather than
-      # leaving a step that pretends to. State that plainly in the README so
-      # nobody plans around a capability that does not exist.
+      # Do NOT reverse a database migration here. Schema recovery is planned by
+      # a human with the data in front of them — that is what rollback_safe
+      # records, and this workflow already refuses to run when it is false.
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # actions/setup-node v6.5.0
+        with:
+          node-version: 24.19.0
+          cache: npm
       - name: Redeploy previous version
+        env:
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "::error title=Template not configured::.github/workflows/rollback.yml is still a placeholder."
-          echo "Replace the 'Redeploy previous version' step with this project's rollback command,"
-          echo "or delete this workflow if the platform does not support rollback."
-          echo "See docs/CUSTOMIZATION.md for the section matching your stack."
-          exit 1
+          set -euo pipefail
+
+          if grep -q "REPLACE_AFTER_PROVISIONING" wrangler.jsonc; then
+            echo "::error title=Provisioning incomplete::wrangler.jsonc still contains REPLACE_AFTER_PROVISIONING identifiers."
+            echo "Per-environment Cloudflare provisioning is not recorded yet; see README →"
+            echo "'The blocking dependencies'. A technical admin replaces the placeholders"
+            echo "and records the result in .helix/project.json before this step can run."
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error title=Deploy credential missing::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets on the ${ENVIRONMENT_NAME} Environment."
+            exit 1
+          fi
+
+          npm ci
+          npm run build
+          case "$ENVIRONMENT_NAME" in
+            staging) npm run deploy:staging ;;
+            production) npm run deploy:production ;;
+            *)
+              echo "::error title=Unknown environment::Expected 'staging' or 'production', got '$ENVIRONMENT_NAME'."
+              exit 1
+              ;;
+          esac
       # ──────────────────────────────────────────────────────────────────────

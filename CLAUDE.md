@@ -36,8 +36,9 @@ tracked by
   and R2 bucket identities, the Access application and audience for each
   hostname, and the secret manager. `deployTarget` and `previewUrl` in
   [`.helix/project.json`](.helix/project.json) stay `null` until a technical
-  admin records them (that file is CODEOWNERS-governed), and the three deploy
-  workflows stay placeholders until the Wrangler deploy step is written.
+  admin records them (that file is CODEOWNERS-governed). The Wrangler deploy
+  steps are written and gated on that provisioning: the deploy workflows
+  refuse to run while `wrangler.jsonc` still carries placeholder identifiers.
 - **Owner:** the Helix technical admins (`@House-of-Helix-CMD/technical-admins`)
   own the pipeline; the application developer is assigned on #1. The named
   business approver is `helixadmin@houseofhelixpeptides.com`, per
@@ -61,6 +62,8 @@ gate loses its reference point.
 | Test | `npm run test:built` — `node --test tests/*.test.mjs` against the built output; `npm test` runs the build first |
 | Build | `npm run build` — bounded `vinext build`, Worker and client |
 | Run locally | `npm run dev` — Vite dev server with the Cloudflare plugin emulating D1 and R2 under `.wrangler/` |
+| Migrate D1 | `npm run db:migrate:staging` / `npm run db:migrate:production` — applies the `drizzle/` migrations to the environment's database |
+| Deploy | `npm run deploy:staging` / `npm run deploy:production` — `wrangler deploy --env <env>`; both refuse to run until per-environment provisioning is recorded in `wrangler.jsonc` |
 
 `lint`, `typecheck`, and `format:check` are separate scripts; the `lint`
 workflow runs all three. `test:built` depends on `build` having run, so the
