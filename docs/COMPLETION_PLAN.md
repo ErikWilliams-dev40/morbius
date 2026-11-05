@@ -12,10 +12,12 @@ their own PRs. Tasks are ordered by dependency and lead time, not just effort.
 
 - ✅ **P0.1** — Done: `npm audit` at zero findings; analysis in
   `docs/DEPENDENCY_REVIEW.md`.
-- ⏸ **P1.1** — Blocked on the migration DDL gate. The invitations DDL is
-  proposed and awaits explicit approval (`CLAUDE.md`: "Don't write migrations
-  unattended. Propose the DDL and wait."). Everything else is ready to build
-  behind it.
+- ✅ **P1.1** — Done: the invitations DDL was proposed and explicitly approved
+  (migration `drizzle/0002_mute_ezekiel.sql`, additive-only, rollback-safe).
+  Version-scoped, expiring, revocable external-reviewer invitations with
+  `GET /invite/:token` (the invitee sees exactly the invited version and
+  nothing else), create/revoke endpoints behind `canManage`, a handoff-tab
+  UI, and `tests/invitations.test.mjs` covering every done-criterion.
 - ✅ **P1.2** — Done: `POST /projects/:id/publish` publishes the decision
   record to the linked issue through a comment-only write client
   (`lib/helix/worker/github/publish.ts`), with refusal tests. UI button in the
@@ -23,12 +25,21 @@ their own PRs. Tasks are ordered by dependency and lead time, not just effort.
 - ✅ **P1.3** — Done: the Worker's `scheduled` handler and `triggers.crons`
   advance the queue with no browser open; covered by
   `tests/scheduled.test.mjs` against built output.
+- ✅ **P3.1/P3.2** — Done (code side): `wrangler.jsonc` with per-environment
+  bindings, real Wrangler deploy steps in `staging-deploy` /
+  `production-deploy`, and a real rollback by redeploying the target SHA (no
+  migration reversal). Every deploy fails at an explicit provisioning gate
+  while `wrangler.jsonc` still carries `REPLACE_AFTER_PROVISIONING`. Deploy
+  and migrate commands are package scripts, per the workflow-command rule.
+- ✅ **P5.1** — Done: SECURITY.md response targets committed (owner + 5/10
+  business-day targets).
 - ✅ **P5.3** — Done: doc drift fixed (README, SECURITY.md, LIFECYCLE.md,
   CLAUDE.md), Windows/Node notes added, `vite.config.ts` import warnings
   resolved.
-- ⬜ Phases 2–4, P5.1, P5.2 — unchanged: external provisioning, real deploy
-  steps, rollback decision, live provider verification, staging acceptance,
-  SECURITY.md response targets, first `releases/` record.
+- ⬜ Phases 2–4, P5.2, P5.4 — external provisioning (replace the
+  `wrangler.jsonc` placeholders, Environments + secrets + `DEPLOY_BASE_URL`),
+  live provider verification, staging acceptance, the first `releases/`
+  record, and repository security settings.
 
 ---
 

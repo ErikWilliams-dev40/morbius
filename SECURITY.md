@@ -27,16 +27,18 @@ Include, as far as you can:
 
 ### What to expect
 
-> **UNCOMMITTED:** the response targets below are deliberately left unfilled.
-> They are a promise to outside reporters, and this project has no on-call
-> rotation or named security owner yet. Fill them in with numbers that can
-> actually be met before this repository is made public.
+> These response targets are a promise to outside reporters. They are set to
+> numbers a small team can actually meet. Review them whenever the security
+> owner changes, and never let them lapse silently.
+
+**Security owner:** the repository owner, reachable through GitHub private
+vulnerability reporting on this repository.
 
 | Stage | Target |
 | --- | --- |
-| Acknowledgement | _to be committed_ |
-| Initial assessment | _to be committed_ |
-| Fix or mitigation plan | _communicated after assessment_ |
+| Acknowledgement | within 5 business days |
+| Initial assessment | within 10 business days of acknowledgement |
+| Fix or mitigation plan | communicated after assessment |
 
 We will keep you informed while the issue is open and credit you in the advisory
 unless you ask us not to.
