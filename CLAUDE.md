@@ -408,6 +408,11 @@ deployment was part of any of them, and none has happened since.
   for the sandboxed preview environment. It refuses to run alongside Helix
   Access configuration, and that refusal is the control. Never switch modes to
   get past a failed sign-in.
+- `MOBIUS_AUTH_MODE=open` is an explicit no-sign-in mode for local runs and
+  unattended previews: one full-access local identity, no credentials. It
+  refuses to run alongside Helix Access or sites_owner configuration — the
+  same control — and unknown or missing modes still deny. It exists so
+  previews are reachable, never as a fallback from a failed sign-in.
 - The existing Helix Access policy admits three email addresses for 24 hours
   with policy-level MFA off. Mobius must not widen that policy for external
   reviewers, and the Mobius Access application needs its own audience.

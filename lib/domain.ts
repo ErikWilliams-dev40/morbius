@@ -231,7 +231,11 @@ export type WorkspaceState = {
   jobs: Job[];
   activity: Activity[];
   ai: { configured: boolean; model: string };
-  access: { private: boolean; externalReviewers: boolean; mode: "helix" | "sites_owner" };
+  access: {
+    private: boolean;
+    externalReviewers: boolean;
+    mode: "helix" | "sites_owner" | "open";
+  };
   helix: { configured: boolean };
 };
 export type ProjectDetail = {

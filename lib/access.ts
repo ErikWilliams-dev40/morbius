@@ -25,7 +25,7 @@ export type User = {
   email: string;
   name: string;
   role: string;
-  mode: "helix" | "sites_owner";
+  mode: "helix" | "sites_owner" | "open";
   companies: string[];
   capabilities: Capabilities;
 };
@@ -54,7 +54,35 @@ export function parseAssignments(raw?: string): Record<string, string[]> {
   }
 }
 
+let openModeWarned = false;
+
 export async function identifyUser(request: Request, env: AccessEnv): Promise<User> {
+  // Explicit no-sign-in mode for local runs and unattended previews. Sign-in is not
+  // bypassed here — this mode must be configured on purpose, it refuses to run
+  // alongside any Helix Access or private-review owner configuration (the same
+  // control as sites_owner below), and unknown or missing modes still deny.
+  if (env.MOBIUS_AUTH_MODE === "open") {
+    if (env.ACCESS_TEAM_DOMAIN || env.ACCESS_AUD || env.MOBIUS_REVIEW_OWNER_ID)
+      throw new AccessError(503, "The open-access configuration needs attention.");
+    if (!openModeWarned) {
+      openModeWarned = true;
+      console.warn(JSON.stringify({ event: "mobius_open_mode_active", sign_in: "disabled" }));
+    }
+    return {
+      id: "open-workspace",
+      email: "open@mobius.local",
+      name: "Open workspace",
+      role: "Open access — sign-in disabled",
+      mode: "open",
+      companies: companies.map((c) => c.id),
+      capabilities: {
+        canRequest: true,
+        canBuild: true,
+        canApprovePrototype: true,
+        canManage: true,
+      },
+    };
+  }
   // A private Sites review is a separately configured deployment, never a fallback
   // from failed Helix authentication. Its owner must be assigned before first use.
   if (env.MOBIUS_AUTH_MODE === "sites_owner") {

@@ -127,6 +127,29 @@ test("Helix authentication never falls back to Sites headers or automatically cr
   );
 });
 
+test("open mode is explicit, grants the full local workspace, and refuses alongside Access configuration", async () => {
+  const request = new Request("https://mobius.test");
+  const user = await identifyUser(request, { MOBIUS_AUTH_MODE: "open" });
+  assert.equal(user.mode, "open");
+  assert.ok(user.companies.length > 0);
+  assert.equal(user.capabilities.canRequest, true);
+  assert.equal(user.capabilities.canBuild, true);
+  assert.equal(user.capabilities.canApprovePrototype, true);
+  assert.equal(user.capabilities.canManage, true);
+  for (const conflicting of [
+    { ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com" },
+    { ACCESS_AUD: "aud-tag" },
+    { MOBIUS_REVIEW_OWNER_ID: "owner-id" },
+  ]) {
+    await assert.rejects(
+      () => identifyUser(request, { MOBIUS_AUTH_MODE: "open", ...conflicting }),
+      { status: 503 },
+    );
+  }
+  // Unknown modes still deny; open is never reached by omission.
+  await assert.rejects(() => identifyUser(request, { MOBIUS_AUTH_MODE: "sneaky" }), { status: 503 });
+});
+
 test("company scopes and separate action permissions protect records, HTML, comments and queue mutations", async (context) => {
   const f = fixture(context);
   const helix = await f.create();
