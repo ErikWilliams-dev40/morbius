@@ -60,7 +60,93 @@ export const companies = [
     url: "https://easytigerbotanicals.com",
     platform: "To be decided",
   },
+  {
+    id: "terpenes",
+    name: "All Things Terpenes",
+    short: "All Things Terpenes",
+    initials: "AT",
+    color: "#4d7a1f",
+    tint: "#ecf6dc",
+    url: "https://all-things-terpenes-staging.dev40.workers.dev",
+    platform: "Cloudflare Workers",
+  },
+  {
+    id: "pepintel",
+    name: "Pep Intel",
+    short: "Pep Intel",
+    initials: "PI",
+    color: "#2f6f9f",
+    tint: "#e2f0fa",
+    url: "https://pep-intel.dev40.workers.dev",
+    platform: "Cloudflare Workers",
+  },
+  {
+    id: "dopemade",
+    name: "Dope Made",
+    short: "Dope Made",
+    initials: "DM",
+    color: "#7a3a9a",
+    tint: "#f4e6fb",
+    url: "https://dope-made-staging.dev40.workers.dev",
+    platform: "Cloudflare Workers",
+  },
+  {
+    id: "sugarmenu",
+    name: "Sugar Menu",
+    short: "Sugar Menu",
+    initials: "SM",
+    color: "#b0377a",
+    tint: "#fde6f2",
+    url: "https://sugarmenu-preview.dev40.workers.dev",
+    platform: "Cloudflare Workers",
+  },
 ] as const;
+// Live and staging websites shown on the Companies view. `company` is set only
+// where the site's owning company is known; any others are listed as unassigned.
+export const sites: { label: string; url: string; stage: string; company: string | null }[] = [
+  {
+    label: "House of Helix Peptides",
+    url: "https://houseofhelixpeptides.com/",
+    stage: "Live",
+    company: "helix",
+  },
+  {
+    label: "Advanced Sequence",
+    url: "https://advancedsequence.com/",
+    stage: "Live",
+    company: "sequence",
+  },
+  {
+    label: "Smoke Show",
+    url: "https://smokeshow-web-staging.dev40.workers.dev/",
+    stage: "Staging",
+    company: "smoke",
+  },
+  {
+    label: "All Things Terpenes",
+    url: "https://all-things-terpenes-staging.dev40.workers.dev/",
+    stage: "Staging",
+    company: "terpenes",
+  },
+  {
+    label: "Pep Intel",
+    url: "https://pep-intel.dev40.workers.dev/",
+    stage: "Preview",
+    company: "pepintel",
+  },
+  {
+    label: "Dope Made",
+    url: "https://dope-made-staging.dev40.workers.dev/",
+    stage: "Staging",
+    company: "dopemade",
+  },
+  {
+    label: "Sugar Menu",
+    url: "https://sugarmenu-preview.dev40.workers.dev/",
+    stage: "Preview",
+    company: "sugarmenu",
+  },
+];
 export const companyById = (id: string) => companies.find((c) => c.id === id) || companies[0];
 export const statuses: Record<string, { label: string; color: string }> = {
   requested: { label: "Requested", color: "bg-slate-100 text-slate-700" },

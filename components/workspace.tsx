@@ -80,6 +80,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   companies,
   companyById,
+  sites,
   statuses,
   type ProjectDetail,
   type WorkspaceState,
@@ -462,7 +463,7 @@ export default function Workspace() {
                       : view === "queue"
                         ? "ONE BUILD AT A TIME"
                         : view === "companies"
-                          ? "SIX COMPANIES, ONE WORKSPACE"
+                          ? "TEN COMPANIES, ONE WORKSPACE"
                           : view === "development"
                             ? "FROM PROTOTYPE TO RELEASE"
                             : "WORKSPACE SETUP"}
@@ -747,6 +748,43 @@ export default function Workspace() {
                       </div>
                     </article>
                   ))}
+                  <article className="panel p-6 md:col-span-2 xl:col-span-3">
+                    <h2 className="text-lg font-semibold">Websites</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Live, staging, and preview sites. Links open in a new tab.
+                    </p>
+                    <ul className="mt-4 divide-y">
+                      {sites
+                        .filter((s) => !s.company || state?.user.companies.includes(s.company))
+                        .map((s) => (
+                          <li
+                            key={s.url}
+                            className="flex flex-wrap items-center justify-between gap-2 py-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium">{s.label}</div>
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 break-all text-sm text-primary"
+                              >
+                                {s.url.replace("https://", "").replace(/\/$/, "")}
+                                <ExternalLink className="size-3 shrink-0" />
+                              </a>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="font-normal">
+                                {s.stage}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {s.company ? companyById(s.company).short : "Unassigned"}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  </article>
                 </div>
               )}
               {view === "development" && <Development />}
