@@ -61,7 +61,8 @@ gate loses its reference point.
 | Lint | `npm run format:check && npm run lint && npm run typecheck` — Prettier, ESLint (`eslint-config-next`), `tsc --noEmit` |
 | Test | `npm run test:built` — `node --test tests/*.test.mjs` against the built output; `npm test` runs the build first |
 | Build | `npm run build` — bounded `vinext build`, Worker and client |
-| Run locally | `npm run dev` — Vite dev server with the Cloudflare plugin emulating D1 and R2 under `.wrangler/` |
+| Run locally | `npm run dev` — Vite dev server with the Cloudflare plugin emulating D1 and R2 under `.wrangler/`; copy `.dev.vars.example` to `.dev.vars` first, or every screen reports a sign-in error |
+| Migrate local D1 | `npm run db:migrate:local` — applies `drizzle/` to the local emulated database through `wrangler.dev.jsonc`, which uses the same placeholder id as the Vite plugin so both reach one database |
 | Migrate D1 | `npm run db:migrate:staging` / `npm run db:migrate:production` — applies the `drizzle/` migrations to the environment's database |
 | Deploy | `npm run deploy:staging` / `npm run deploy:production` — `wrangler deploy --env <env>`; both refuse to run until per-environment provisioning is recorded in `wrangler.jsonc` |
 
@@ -159,7 +160,7 @@ public/                static assets
 vendor/                shadcn-tailwind-4.13.0.css — shadcn's base stylesheet, pinned by content hash
 tests/*.test.mjs       node --test: auth, integration, workflow, site catalog, rendered HTML, UI primitives
 scripts/               install/build wrappers for the sandboxed preview environment
-build/                 Vite plugin for that environment
+build/                 Vite plugins: preview-environment bundling, and the dev-only local identity shim
 docs/                  lifecycle documentation (template); docs/review/ holds the package's review notes
 REVIEW-PACKAGE-MANIFEST.json   sha256 of every imported file, for verifying the import against the package
 ```

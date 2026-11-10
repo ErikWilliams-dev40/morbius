@@ -1,0 +1,20 @@
+{
+  // Local-development D1 only. The Vite dev plugin creates this database on
+  // first run with the same placeholder id, under the same `.wrangler/state`
+  // directory, so `wrangler d1 migrations apply --local` against this file
+  // migrates exactly the database the dev server reads. Never deploy with it:
+  // `wrangler.jsonc` holds the per-environment configuration.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mobius-dev",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "site-creator-d1",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "drizzle",
+    },
+  ],
+}

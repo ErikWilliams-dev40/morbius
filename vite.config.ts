@@ -1,6 +1,7 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json" with { type: "json" };
+import { devIdentity } from "./build/dev-identity-vite-plugin.ts";
 import { sites } from "./build/sites-vite-plugin.ts";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID = "00000000-0000-4000-8000-000000000000";
@@ -52,6 +53,8 @@ export default defineConfig(async () => {
       ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
     },
     plugins: [
+      // First, so loopback requests carry the local identity before the Worker sees them.
+      devIdentity(),
       vinext(),
       sites(),
       cloudflare({

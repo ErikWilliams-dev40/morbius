@@ -49,6 +49,29 @@ Under Windows cmd/PowerShell the direct equivalents are `npx vite`,
 `npx vinext build`, and `npx eslint .`. Runtime state (`.wrangler/`,
 `.sites-runtime/`) is created on first run and never committed.
 
+### First run
+
+The Worker identifies people from the `oai-authenticated-user-*` headers the
+hosted preview proxy injects, so a browser opened straight at `localhost` has no
+identity and every screen reports a sign-in error. Two setup steps fix that,
+both local-only:
+
+```sh
+npm ci
+cp .dev.vars.example .dev.vars   # local identity; never deploy or commit these values
+npm run db:migrate:local         # applies drizzle/ to the local D1 under .wrangler/
+npm run dev                      # http://localhost:5173/
+```
+
+`.dev.vars` is read by the Worker and by a dev-only Vite middleware that supplies
+configured `sites_owner` identity (default `local-dev`) to requests addressed to
+`localhost`, `127.0.0.1`, or `[::1]` — no other host gets it, and the middleware
+is not part of a build. Without the file the server still starts, but the
+workspace cannot sign in; without the migration it reports that it could not
+load. `wrangler.dev.jsonc` carries the same placeholder database id the Vite
+plugin uses, so `db:migrate:local` and `dev` share one local database. Delete
+`.wrangler/state` to start from an empty workspace.
+
 ## Current state
 
 The application source is in this repository. #8 imported the 2026-09-06
