@@ -47,7 +47,7 @@ export const companies = [
     initials: "SS",
     color: "#b14452",
     tint: "#ffe8ed",
-    url: "https://smokeshowlabs.com",
+    url: "https://smokeshow-web-staging.dev40.workers.dev",
     platform: "Shopify",
   },
   {
