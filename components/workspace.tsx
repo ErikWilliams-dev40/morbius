@@ -80,7 +80,10 @@ import { Progress } from "@/components/ui/progress";
 import {
   companies,
   companyById,
+  primarySiteFor,
+  siteByUrl,
   sites,
+  sitesForCompany,
   statuses,
   type ProjectDetail,
   type WorkspaceState,
@@ -711,78 +714,115 @@ export default function Workspace() {
               )}
               {view === "companies" && (
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {visibleCompanies.map((c) => (
-                    <article key={c.id} className="panel flex flex-col p-6">
-                      <div className="mb-5 flex items-center justify-between">
-                        <CompanyMark id={c.id} />
-                        <Badge variant="outline" className="font-normal">
-                          {state?.projects.filter((p) => p.company === c.id).length || 0} projects
-                        </Badge>
-                      </div>
-                      <h2 className="text-lg font-semibold">{c.name}</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">{c.platform}</p>
-                      <a
-                        href={c.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 flex items-center gap-2 break-all text-sm text-primary"
-                      >
-                        {c.url.replace("https://", "")}
-                        <ExternalLink className="size-3 shrink-0" />
-                      </a>
-                      <div className="mt-6 flex items-center justify-between border-t pt-4">
-                        <span className="text-xs text-muted-foreground">
-                          Website connection pending
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            go("projects");
-                            setCompany(c.id);
-                          }}
-                        >
-                          View projects
-                          <ArrowRight className="size-4" />
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
-                  <article className="panel p-6 md:col-span-2 xl:col-span-3">
-                    <h2 className="text-lg font-semibold">Websites</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Live, staging, and preview sites. Links open in a new tab.
-                    </p>
-                    <ul className="mt-4 divide-y">
-                      {sites
-                        .filter((s) => !s.company || state?.user.companies.includes(s.company))
-                        .map((s) => (
-                          <li
-                            key={s.url}
-                            className="flex flex-wrap items-center justify-between gap-2 py-3"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium">{s.label}</div>
+                  {visibleCompanies.map((c) => {
+                    const owned = sitesForCompany(c.id);
+                    return (
+                      <article key={c.id} className="panel flex flex-col p-6">
+                        <div className="mb-5 flex items-center justify-between">
+                          <CompanyMark id={c.id} />
+                          <Badge variant="outline" className="font-normal">
+                            {state?.projects.filter((p) => p.company === c.id).length || 0} projects
+                          </Badge>
+                        </div>
+                        <h2 className="text-lg font-semibold">{c.name}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">{c.platform}</p>
+                        <ul className="mt-3 space-y-2">
+                          {owned.map((s) => (
+                            <li key={s.id}>
                               <a
                                 href={s.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-2 break-all text-sm text-primary"
+                                className="flex items-start gap-2 break-all text-sm text-primary"
                               >
+                                <span className="mt-0.5 shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">
+                                  {s.stage}
+                                </span>
                                 {s.url.replace("https://", "").replace(/\/$/, "")}
-                                <ExternalLink className="size-3 shrink-0" />
+                                <ExternalLink className="mt-0.5 size-3 shrink-0" />
                               </a>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="font-normal">
-                                {s.stage}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {s.company ? companyById(s.company).short : "Unassigned"}
-                              </span>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          ))}
+                          {!owned.length && (
+                            <li className="text-sm text-muted-foreground">
+                              {c.url.replace("https://", "").replace(/\/$/, "")} · no site linked
+                              yet
+                            </li>
+                          )}
+                        </ul>
+                        <div className="mt-6 flex items-center justify-between border-t pt-4">
+                          <span className="text-xs text-muted-foreground">
+                            {owned.length
+                              ? `${owned.length} website${owned.length === 1 ? "" : "s"} linked`
+                              : "Website not linked"}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              go("projects");
+                              setCompany(c.id);
+                            }}
+                          >
+                            View projects
+                            <ArrowRight className="size-4" />
+                          </Button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                  <article className="panel p-6 md:col-span-2 xl:col-span-3">
+                    <h2 className="text-lg font-semibold">Websites</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Every live, staging, and preview site your projects start from. Links open in
+                      a new tab.
+                    </p>
+                    <ul className="mt-4 divide-y">
+                      {sites
+                        .filter((s) => !s.company || state?.user.companies.includes(s.company))
+                        .map((s) => {
+                          const siteCompany = s.company;
+                          return (
+                            <li
+                              key={s.id}
+                              className="flex flex-wrap items-center justify-between gap-2 py-3"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">{s.label}</div>
+                                <a
+                                  href={s.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-2 break-all text-sm text-primary"
+                                >
+                                  {s.url.replace("https://", "").replace(/\/$/, "")}
+                                  <ExternalLink className="size-3 shrink-0" />
+                                </a>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-normal">
+                                  {s.stage}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {siteCompany ? companyById(siteCompany).short : "Unassigned"}
+                                </span>
+                                {siteCompany && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setCompany(siteCompany);
+                                      go("projects");
+                                    }}
+                                  >
+                                    Projects
+                                    <ArrowRight className="size-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
                     </ul>
                   </article>
                 </div>
@@ -827,23 +867,39 @@ function NewRequest({
   company: string;
   onCreated: (id: string) => void;
 }) {
+  const initialCompany = company === "all" ? assignedCompanies[0] || "" : company;
   const [form, setForm] = useState({
-    company: company === "all" ? assignedCompanies[0] || "" : company,
+    company: initialCompany,
     kind: "new",
     title: "",
     brief: "",
     criteria: "",
-    reference: "",
+    // A new request starts from an existing website link for its company.
+    reference: primarySiteFor(initialCompany)?.url ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const companySites = sitesForCompany(form.company);
+  // Choosing a company moves the reference to that company's site, unless the
+  // user has typed a page of their own.
+  function chooseCompany(next: string) {
+    const previous = sitesForCompany(form.company).map((s) => s.url);
+    setForm((f) => ({
+      ...f,
+      company: next,
+      reference:
+        !f.reference || previous.includes(f.reference)
+          ? (primarySiteFor(next)?.url ?? "")
+          : f.reference,
+    }));
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
       const p = await api<{ id: string }>("/projects", form);
-      setForm({ ...form, title: "", brief: "", criteria: "", reference: "" });
+      setForm((f) => ({ ...f, title: "", brief: "", criteria: "" }));
       onCreated(p.id);
     } catch (e) {
       setError((e as Error).message);
@@ -869,7 +925,7 @@ function NewRequest({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Company</Label>
-              <Select value={form.company} onValueChange={(v) => setForm({ ...form, company: v })}>
+              <Select value={form.company} onValueChange={chooseCompany}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -950,6 +1006,29 @@ function NewRequest({
               onChange={(e) => setForm({ ...form, reference: e.target.value })}
               placeholder="https://"
             />
+            {companySites.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs text-muted-foreground">Start from:</span>
+                {companySites.map((s) => {
+                  const selected = form.reference === s.url;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setForm({ ...form, reference: s.url })}
+                      aria-pressed={selected}
+                      className={`rounded-full border px-2.5 py-1 text-xs ${
+                        selected
+                          ? "border-primary bg-secondary font-medium text-primary"
+                          : "text-muted-foreground hover:border-primary"
+                      }`}
+                    >
+                      {s.stage} · {s.url.replace("https://", "").replace(/\/$/, "")}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Saved for context. Add relevant page details to the brief; links are not imported
               automatically.
@@ -999,6 +1078,7 @@ function ProjectReview({
   onRefresh: () => void;
 }) {
   const { project: p, versions, comments, activity, invitations } = detail;
+  const referenceSite = p.reference ? siteByUrl(p.reference) : null;
   const [versionId, setVersionId] = useState("");
   const [mobile, setMobile] = useState(false);
   const [comment, setComment] = useState("");
@@ -1282,14 +1362,21 @@ function ProjectReview({
                 {p.reference && (
                   <div className="border-t pt-5">
                     <h3 className="mb-2 font-semibold">Reference</h3>
-                    <a
-                      href={p.reference}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="break-all text-primary underline"
-                    >
-                      {p.reference}
-                    </a>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={p.reference}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-primary underline"
+                      >
+                        {p.reference}
+                      </a>
+                      {referenceSite && (
+                        <Badge variant="outline" className="font-normal">
+                          {referenceSite.stage} site
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 )}
                 <p className="border-t pt-4 text-sm text-muted-foreground">
