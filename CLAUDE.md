@@ -147,7 +147,7 @@ components/
   ui/                  shadcn primitives, vendored verbatim (lint rules relaxed there only)
 lib/
   access.ts            Cloudflare Access JWT verification — identity
-  domain.ts            roles, company scope, action permissions — authorization
+  domain.ts            roles, company scope, action permissions — authorization; company and website-link catalog
   server.ts            the API: queue, versions, feedback, approval, provider adapter, preview CSP
   helix.ts             read-only Helix status adapter
   helix/               control-plane modules adapted for Mobius; source-manifest.json hashes the originals
@@ -157,7 +157,7 @@ worker/index.ts        the Worker entry: routes /api/mobius/ and /preview/ to li
 hooks/                 use-mobile.ts
 public/                static assets
 vendor/                shadcn-tailwind-4.13.0.css — shadcn's base stylesheet, pinned by content hash
-tests/*.test.mjs       node --test: auth, integration, workflow, rendered HTML, UI primitives
+tests/*.test.mjs       node --test: auth, integration, workflow, site catalog, rendered HTML, UI primitives
 scripts/               install/build wrappers for the sandboxed preview environment
 build/                 Vite plugin for that environment
 docs/                  lifecycle documentation (template); docs/review/ holds the package's review notes

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   companies,
   companyById,
+  primarySiteFor,
   type Project,
   type Version,
   type Job,
@@ -723,6 +724,9 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
           409,
           "Use an open GitHub issue in a repository assigned to this company. GitHub access must be configured to verify it.",
         );
+      // A project is work on an existing site. When the client names no page,
+      // record the company's live site so the record still points at it.
+      const reference = data.reference || (primarySiteFor(data.company)?.url ?? "");
       const id = uid();
       await env.DB.batch([
         stmt(
@@ -734,7 +738,7 @@ export async function handleMobius(request: Request, env: AppEnv): Promise<Respo
           data.kind,
           data.brief,
           data.criteria,
-          data.reference,
+          reference,
           data.issueUrl,
           now(),
           now(),

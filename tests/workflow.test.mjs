@@ -46,6 +46,19 @@ test("real request, upload, version feedback, approval, handoff, and revision in
   assert.equal(detail.project.approved_version, null);
 });
 
+test("a project requested without a page link records its company's live site", async (context) => {
+  const f = fixture(context);
+  const { id } = await f.ok("/projects", {
+    title: "Compare two products",
+    company: "sequence",
+    kind: "new",
+    brief: "Give visitors a way to compare two products side by side.",
+    reference: "",
+  });
+  const detail = await f.ok(`/projects/${id}`);
+  assert.equal(detail.project.reference, "https://advancedsequence.com/");
+});
+
 test("identity and origin checks protect API, HTML bytes, and mutation routes", async (context) => {
   const f = fixture(context);
   const p = await f.create();

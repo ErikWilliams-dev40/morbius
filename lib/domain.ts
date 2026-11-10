@@ -101,52 +101,107 @@ export const companies = [
     platform: "Cloudflare Workers",
   },
 ] as const;
-// Live and staging websites shown on the Companies view. `company` is set only
-// where the site's owning company is known; any others are listed as unassigned.
-export const sites: { label: string; url: string; stage: string; company: string | null }[] = [
+export type SiteStage = "Live" | "Staging" | "Preview";
+export type Site = {
+  id: string;
+  label: string;
+  url: string;
+  stage: SiteStage;
+  /** Owning company slot; `null` only for a site with no company yet. */
+  company: string | null;
+};
+const stageOrder: Record<SiteStage, number> = { Live: 0, Staging: 1, Preview: 2 };
+// Every existing website link, one entry per deployment. `companies[].url` is a
+// company's primary domain, so it appears here as that company's live site once
+// the domain serves one. Easy Tiger Botanicals has a registered domain that is
+// still parked, so it has no site entry and no linked projects yet. The
+// Companies view, the Websites panel, and the request form all read this one
+// list, so a link added here reaches project functionality without a second edit.
+export const sites: Site[] = [
   {
+    id: "helix-live",
     label: "House of Helix Peptides",
     url: "https://houseofhelixpeptides.com/",
     stage: "Live",
     company: "helix",
   },
   {
+    id: "sequence-live",
     label: "Advanced Sequence",
     url: "https://advancedsequence.com/",
     stage: "Live",
     company: "sequence",
   },
   {
+    id: "halo-live",
+    label: "Halo Protocol",
+    url: "https://haloprotocol.com/",
+    stage: "Live",
+    company: "halo",
+  },
+  {
+    id: "inca-live",
+    label: "Inca Trail Terpenes",
+    url: "https://incatrailterpenes.com/",
+    stage: "Live",
+    company: "inca",
+  },
+  {
+    id: "smoke-live",
     label: "Smoke Show",
+    url: "https://smokeshowlabs.com/",
+    stage: "Live",
+    company: "smoke",
+  },
+  {
+    id: "smoke-staging",
+    label: "Smoke Show staging",
     url: "https://smokeshow-web-staging.dev40.workers.dev/",
     stage: "Staging",
     company: "smoke",
   },
   {
+    id: "terpenes-staging",
     label: "All Things Terpenes",
     url: "https://all-things-terpenes-staging.dev40.workers.dev/",
     stage: "Staging",
     company: "terpenes",
   },
   {
-    label: "Pep Intel",
-    url: "https://pep-intel.dev40.workers.dev/",
-    stage: "Preview",
-    company: "pepintel",
-  },
-  {
+    id: "dopemade-staging",
     label: "Dope Made",
     url: "https://dope-made-staging.dev40.workers.dev/",
     stage: "Staging",
     company: "dopemade",
   },
   {
+    id: "pepintel-preview",
+    label: "Pep Intel",
+    url: "https://pep-intel.dev40.workers.dev/",
+    stage: "Preview",
+    company: "pepintel",
+  },
+  {
+    id: "sugarmenu-preview",
     label: "Sugar Menu",
     url: "https://sugarmenu-preview.dev40.workers.dev/",
     stage: "Preview",
     company: "sugarmenu",
   },
 ];
+/** A site URL without its trailing slash, lowercased, for comparison. */
+export const siteUrlKey = (url: string) => url.trim().replace(/\/+$/, "").toLowerCase();
+/** A company's sites, live first, then staging, then preview. */
+export const sitesForCompany = (companyId: string) =>
+  sites
+    .filter((s) => s.company === companyId)
+    .sort((a, b) => stageOrder[a.stage] - stageOrder[b.stage] || a.label.localeCompare(b.label));
+/** The site a new request starts from: the live one when there is one. */
+export const primarySiteFor = (companyId: string) => sitesForCompany(companyId)[0] ?? null;
+export const siteByUrl = (url: string) => {
+  const key = siteUrlKey(url);
+  return key ? (sites.find((s) => siteUrlKey(s.url) === key) ?? null) : null;
+};
 export const companyById = (id: string) => companies.find((c) => c.id === id) || companies[0];
 export const statuses: Record<string, { label: string; color: string }> = {
   requested: { label: "Requested", color: "bg-slate-100 text-slate-700" },
