@@ -16,6 +16,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "no_bundle": true,
   "upload_source_maps": true,
+  // Workers Logs: keep invocation logs and exceptions so a failing cron or
+  // request leaves its error message behind. Inherited by every environment.
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
   "triggers": { "crons": ["* * * * *"] },
   "assets": { "directory": "dist/client", "binding": "ASSETS" },
   "images": { "binding": "IMAGES" },
