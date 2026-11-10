@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "displayName": "Mobius Godmode",
   "businessApprover": "helixadmin@houseofhelixpeptides.com",
-  "previewUrl": null,
-  "deployTarget": null,
+  "previewUrl": "https://mobius-staging.dev40.workers.dev",
+  "deployTarget": "mobius-staging (dev40.workers.dev)",
   "provisionedBy": "helix-control-plane"
 }

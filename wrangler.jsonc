@@ -15,7 +15,9 @@
   "main": "dist/server/index.js",
   "compatibility_date": "2026-09-06",
   "compatibility_flags": ["nodejs_compat"],
-  "no_bundle": true,
+  // Wrangler bundles the vinext server entry itself: with no_bundle the chunked
+  // dist/server/_next/** modules were never uploaded and the API rejected the
+  // deploy ("No such module"). Bundling inlines the whole import graph.
   "upload_source_maps": true,
   "triggers": { "crons": ["* * * * *"] },
   "assets": { "directory": "dist/client", "binding": "ASSETS" },
