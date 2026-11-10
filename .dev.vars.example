@@ -1,0 +1,9 @@
+# Local development only. Copy to `.dev.vars` (gitignored) before `npm run dev`.
+#
+# A dev-only Vite middleware supplies this Sites-owner identity to requests
+# addressed to localhost, because no proxy injects the platform headers locally.
+# The hosted preview injects the real ones instead, and a deployed environment
+# must never carry these values.
+MOBIUS_AUTH_MODE=sites_owner
+MOBIUS_REVIEW_OWNER_ID=local-dev
+MOBIUS_DEV_EMAIL=dev@localhost

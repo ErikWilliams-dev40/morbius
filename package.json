@@ -13,6 +13,7 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply site-creator-d1 --local --config wrangler.dev.jsonc",
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
