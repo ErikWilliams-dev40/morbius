@@ -378,8 +378,8 @@ export default function Workspace() {
         <header className="sticky top-0 z-20 flex h-[4.5rem] items-center justify-between gap-4 border-b bg-white/95 px-5 backdrop-blur md:px-9">
           <div className="flex min-w-0 items-center gap-3">
             <SidebarTrigger className="md:hidden" />
-            <span className="text-sm text-muted-foreground">Workspace</span>
-            <ChevronRight className="size-4 text-slate-300" />
+            <span className="hidden text-sm text-muted-foreground sm:inline">Workspace</span>
+            <ChevronRight className="hidden size-4 text-slate-300 sm:block" />
             <span className="truncate text-sm font-medium">
               {selected ? "Project review" : nav.find((n) => n.id === view)?.label}
             </span>
@@ -1166,9 +1166,9 @@ function ProjectReview({
         All projects
       </button>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <CompanyMark id={p.company} />
-          <div>
+          <div className="min-w-0">
             <div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>{companyById(p.company).name}</span>
               <span>·</span>
@@ -1239,10 +1239,10 @@ function ProjectReview({
           </p>
         </div>
       )}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList variant="line" className="mb-4">
+            <TabsList variant="line" className="mb-4 flex max-w-full justify-start overflow-x-auto">
               <TabsTrigger value="prototype">
                 Prototype {versions.length > 0 && `(${versions.length})`}
               </TabsTrigger>
@@ -1256,7 +1256,7 @@ function ProjectReview({
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
                       <Select value={v.id} onValueChange={setVersionId}>
-                        <SelectTrigger className="w-[220px]">
+                        <SelectTrigger className="w-full sm:w-[220px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1307,14 +1307,14 @@ function ProjectReview({
                         : `Version ${v.number} · ${v.label}`}
                       <span className="ml-2">· Simulated interactions</span>
                     </div>
-                    <div className="flex min-h-[600px] justify-center bg-slate-100 p-2 md:p-4">
+                    <div className="flex min-h-[70dvh] justify-center bg-slate-100 p-2 md:min-h-[600px] md:p-4">
                       <iframe
                         key={v.id}
                         src={`/preview/${v.id}`}
                         title={`${p.title} version ${v.number}`}
                         sandbox="allow-scripts"
                         referrerPolicy="no-referrer"
-                        className={`min-h-[600px] rounded-lg border bg-white shadow-sm ${mobile ? "w-[390px] max-w-full" : "w-full"}`}
+                        className={`min-h-[70dvh] rounded-lg md:min-h-[600px] border bg-white shadow-sm ${mobile ? "w-[390px] max-w-full" : "w-full"}`}
                       />
                     </div>
                   </>
@@ -1493,7 +1493,7 @@ function ProjectReview({
                   </p>
                   {canManage && v && (
                     <div className="flex flex-wrap items-end gap-2">
-                      <div className="min-w-[220px] flex-1">
+                      <div className="min-w-0 flex-1 basis-full sm:basis-[220px]">
                         <Label htmlFor="invite-email">Reviewer email</Label>
                         <Input
                           id="invite-email"
@@ -1993,10 +1993,10 @@ function Connections({
   const [chosenModel, setModel] = useState<string | null>(null);
   const model = chosenModel || state?.ai.model || "gpt-5.6-sol";
   return (
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-5">
         <section className="panel p-6">
-          <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">
                 <Sparkles className="size-5" />
