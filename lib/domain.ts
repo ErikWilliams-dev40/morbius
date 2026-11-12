@@ -100,6 +100,16 @@ export const companies = [
     url: "https://sugarmenu-preview.dev40.workers.dev",
     platform: "Cloudflare Workers",
   },
+  {
+    id: "terphero",
+    name: "Terp Hero",
+    short: "Terp Hero",
+    initials: "TH",
+    color: "#8a6a00",
+    tint: "#fbf1cf",
+    url: "https://terp-hero-staging.dev40.workers.dev",
+    platform: "Cloudflare Workers",
+  },
 ] as const;
 export type SiteStage = "Live" | "Staging" | "Preview";
 export type Site = {
@@ -187,6 +197,13 @@ export const sites: Site[] = [
     url: "https://sugarmenu-preview.dev40.workers.dev/",
     stage: "Preview",
     company: "sugarmenu",
+  },
+  {
+    id: "terphero-staging",
+    label: "Terp Hero",
+    url: "https://terp-hero-staging.dev40.workers.dev/",
+    stage: "Staging",
+    company: "terphero",
   },
 ];
 /** A site URL without its trailing slash, lowercased, for comparison. */
